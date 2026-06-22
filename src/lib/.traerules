@@ -1,0 +1,14 @@
+# Diretrizes Gerais de Desenvolvimento
+- Use sempre TypeScript estrito. Não utilize 'any'.
+- Sempre que criar código para o Supabase, utilize a versão mais recente do '@supabase/supabase-js'.
+- Nunca invente colunas ou tabelas que não existem no banco de dados.
+
+# Regras de Banco de Dados (Supabase/PostgreSQL)
+- Toda e qualquer tabela criada DEVE ter Row-Level Security (RLS) ativado.
+- Não crie políticas de segurança (RLS) genéricas; restrinja sempre usando 'auth.uid()'.
+- Sempre que criar uma tabela, gere também a tipagem TypeScript correspondente.
+
+# Comportamento da IA
+- Pare e pergunte antes de fazer alterações estruturais destrutivas.
+- Se não tiver a certeza sobre a estrutura de uma tabela, peça-me para fornecer o esquema atual.
+- NÃO utilize métodos ou funções depreciadas. Se houver dúvida, consulte o index de documentação anexado.

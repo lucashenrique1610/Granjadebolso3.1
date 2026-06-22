@@ -1,0 +1,6 @@
+{
+  "name": "Granja de Bolso",
+  "description": "Sistema de gestão inteligente, controle logístico e rastreabilidade para avicultura e granja caipira.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

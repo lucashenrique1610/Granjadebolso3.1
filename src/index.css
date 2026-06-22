@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-primary: var(--brand-primary, #005da6);
+  --color-brand-hover: var(--brand-hover, #004882);
+  --color-brand-active: var(--brand-active, #001c39);
+  --color-brand-bg: var(--brand-bg, rgba(0, 93, 166, 0.08));
+  --color-brand-main: var(--brand-main, #f8f9ff);
+}
+
+:root.dark-theme {
+  color-scheme: dark;
+}
+
+body.dark-theme {
+  background: #0b1220;
+  color: #e5e7eb;
+}
+
+.app-section {
+  padding: 1.5rem;
+}
+
+.app-section-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.app-section-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-primary, #005da6);
+  background: rgba(0, 93, 166, 0.08);
+  border: 1px solid rgba(0, 93, 166, 0.18);
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.app-section-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f1c2b;
+}
+
+.app-section-description {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  color: #64748b;
+  max-width: 38rem;
+  line-height: 1.6;
+}
+
+.dark-theme .bg-brand-main {
+  background-color: #0b1220 !important;
+}
+
+.dark-theme .bg-white {
+  background-color: #111827 !important;
+}
+
+.dark-theme .bg-slate-50,
+.dark-theme .bg-slate-100,
+.dark-theme .bg-slate-200,
+.dark-theme .bg-slate-300,
+.dark-theme .bg-slate-300\/30 {
+  background-color: #1f2937 !important;
+}
+
+.dark-theme .border-gray-100,
+.dark-theme .border-gray-200,
+.dark-theme .border-gray-300,
+.dark-theme .border-slate-100,
+.dark-theme .border-slate-200,
+.dark-theme .border-slate-300,
+.dark-theme .border-slate-300\/30,
+.dark-theme .border-amber-200,
+.dark-theme .border-green-200,
+.dark-theme .border-red-200 {
+  border-color: #334155 !important;
+}
+
+.dark-theme .text-gray-400,
+.dark-theme .text-gray-500,
+.dark-theme .text-gray-600,
+.dark-theme [class*="text-[#717783]"],
+.dark-theme .text-slate-400,
+.dark-theme .text-slate-500,
+.dark-theme .text-slate-600,
+.dark-theme [class*="text-[#414752]"] {
+  color: #94a3b8 !important;
+}
+
+.dark-theme .text-gray-700,
+.dark-theme .text-gray-800,
+.dark-theme .text-slate-700,
+.dark-theme .text-slate-800,
+.dark-theme [class*="text-[#0f1c2b]"] {
+  color: #e5e7eb !important;
+}
+
+.dark-theme input,
+.dark-theme select,
+.dark-theme textarea {
+  background-color: #0f172a !important;
+  color: #e5e7eb !important;
+  border-color: #334155 !important;
+}
+
+.dark-theme input::placeholder,
+.dark-theme textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark-theme .hover\:bg-slate-50:hover,
+.dark-theme .hover\:bg-slate-100:hover,
+.dark-theme .hover\:bg-slate-200:hover,
+.dark-theme .hover\:bg-red-50:hover,
+.dark-theme .hover\:bg-brand-primary\/5:hover,
+.dark-theme .hover\:bg-brand-primary\/10:hover {
+  background-color: #1e293b !important;
+}
+
+.dark-theme .hover\:text-gray-600:hover,
+.dark-theme .hover\:text-gray-700:hover,
+.dark-theme .hover\:text-red-700:hover {
+  color: #e5e7eb !important;
+}
+
+.dark-theme .bg-amber-50,
+.dark-theme .bg-green-50,
+.dark-theme .bg-red-50 {
+  background-color: #172033 !important;
+}
+
+.dark-theme .bg-black\/30,
+.dark-theme .bg-white\/5 {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+}
+
+.dark-theme .border-white\/10 {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+.dark-theme .text-white {
+  color: #f8fafc !important;
+}
+
+.dark-theme .text-amber-800,
+.dark-theme .text-green-800,
+.dark-theme .text-red-800 {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme .text-amber-600,
+.dark-theme .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+.dark-theme .text-green-600,
+.dark-theme .text-green-700 {
+  color: #4ade80 !important;
+}
+
+.dark-theme .text-red-600,
+.dark-theme .text-red-700 {
+  color: #f87171 !important;
+}
+
+.dark-theme .shadow-sm,
+.dark-theme .shadow-md,
+.dark-theme .shadow-lg,
+.dark-theme .shadow-xl {
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35) !important;
+}
+
+.dark-theme .app-section-card {
+  background: #111827;
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35);
+}
+
+.dark-theme .app-section-badge {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.26);
+}
+
+.dark-theme .app-section-title {
+  color: #e5e7eb;
+}
+
+.dark-theme .app-section-description {
+  color: #94a3b8;
+}

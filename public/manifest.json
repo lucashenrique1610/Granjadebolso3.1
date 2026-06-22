@@ -1,0 +1,14 @@
+{
+  "name": "Granja de Bolso",
+  "short_name": "Granja de Bolso",
+  "icons": [
+    {
+      "src": "/icone_app_instagram_style.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#3b82f6",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}
