@@ -344,8 +344,17 @@ export default function FormulacaoPage({
   };
 
   const handleSaveIngredient = async () => {
-    if (!ingredientDraft.name.trim()) {
+    const trimmedName = ingredientDraft.name.trim();
+    if (!trimmedName) {
       alert('Informe o nome do ingrediente.');
+      return;
+    }
+
+    const isDuplicate = ingredients.some(
+      (i) => i.name.toLowerCase().trim() === trimmedName.toLowerCase() && i.id !== editingIngredientId
+    );
+    if (isDuplicate) {
+      alert('Já existe um ingrediente cadastrado com este nome.');
       return;
     }
 
@@ -767,9 +776,9 @@ export default function FormulacaoPage({
                   type="button"
                   onClick={() => {
                     if (confirm('Deseja importar os ingredientes padrão? Isso não sobrescreverá os ingredientes existentes.')) {
-                      const existingNames = new Set(ingredients.map(i => i.name));
+                      const existingNames = new Set(ingredients.map(i => i.name.toLowerCase().trim()));
                       DEFAULT_INGREDIENTS.forEach(defaultIng => {
-                        if (!existingNames.has(defaultIng.name)) {
+                        if (!existingNames.has(defaultIng.name.toLowerCase().trim())) {
                           onSaveIngredient({
                             ...defaultIng,
                             id: crypto.randomUUID(),

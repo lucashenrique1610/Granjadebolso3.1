@@ -355,14 +355,17 @@ export async function searchCity(cityName: string): Promise<{ lat: number; lon: 
 export async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=pt&format=json`
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=pt`
     );
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.results && data.results.length > 0) {
-      const loc = data.results[0];
-      if (loc.admin1) return `${loc.name}, ${loc.admin1}, ${loc.country}`;
-      return `${loc.name}, ${loc.country}`;
+    if (data) {
+      const city = data.city || data.locality;
+      const state = data.principalSubdivision;
+      const country = data.countryName;
+      if (city && state) return `${city}, ${state}, ${country}`;
+      if (city) return `${city}, ${country}`;
+      return country || null;
     }
     return null;
   } catch {

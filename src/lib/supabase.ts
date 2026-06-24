@@ -12,7 +12,7 @@ import {
   MortalityRecord,
   PurchaseRecord,
   SupplierRecord,
-  THEME_PALETTES,
+  ThemePaletteId,
   VeterinaryStockRecord,
   ManejoRecord,
   DisponibilidadeVenda,
@@ -627,9 +627,9 @@ function normalizeBackupSnapshot(snapshot: BackupSnapshot): BackupSnapshot {
   const paletteId = snapshot?.systemSettings?.selectedPalette;
   const fallbackPalette = snapshot?.farmProfile?.selectedPalette;
   const selectedPalette =
-    paletteId && paletteId in THEME_PALETTES
+    paletteId
       ? paletteId
-      : fallbackPalette && fallbackPalette in THEME_PALETTES
+      : fallbackPalette
         ? fallbackPalette
         : 'blue';
 
@@ -651,6 +651,8 @@ function normalizeBackupSnapshot(snapshot: BackupSnapshot): BackupSnapshot {
     },
     systemSettings: {
       selectedPalette,
+      fontFamily: (snapshot?.systemSettings as any)?.fontFamily || 'inter',
+      borderRadius: (snapshot?.systemSettings as any)?.borderRadius || 'rounded',
       eggSalePrice: Number(snapshot?.systemSettings?.eggSalePrice ?? 0),
       birdSalePrice: Number(snapshot?.systemSettings?.birdSalePrice ?? 0),
       litterSalePrice: Number(snapshot?.systemSettings?.litterSalePrice ?? 0),
@@ -1613,7 +1615,7 @@ export async function upsertMyHealthRecord(record: HealthRecord) {
     id: record.id,
     user_id: userId,
     granja_id: granjaId,
-    occurred_at: record.occurredAt,
+    occurred_at: record.occurredAt ? new Date(record.occurredAt).toISOString() : new Date().toISOString(),
     procedure_type: record.procedureType,
     animal_id: record.animalId,
     galpao_id: record.galpaoId,
@@ -1771,7 +1773,7 @@ export async function listMyManejoRecords() {
 export async function upsertMyManejoRecord(record: ManejoRecord) {
   const sb = requireSupabase();
   const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const payload = {
+  const payload: any = {
     id: record.id,
     user_id: userId,
     granja_id: granjaId,
@@ -1781,12 +1783,18 @@ export async function upsertMyManejoRecord(record: ManejoRecord) {
     ovos_coletados: record.ovosColetados,
     ovos_danificados: record.ovosDanificados,
     racao_kg: record.racaoKg,
-    formulation_id: record.formulationId,
     porta_aberta: record.portaAberta,
     peso_medio_ovos: record.pesoMedioOvos,
     tamanho_ovos: record.tamanhoOvos,
     updated_at: new Date().toISOString(),
   };
+
+  try {
+    const { error: testError } = await sb.from('manejo_registros').select('formulation_id').limit(1);
+    if (!testError) {
+      payload.formulation_id = record.formulationId;
+    }
+  } catch (e) {}
 
   const { data, error } = await sb.from('manejo_registros').upsert(payload).select('*').single();
   if (error) throw error;
@@ -2296,7 +2304,7 @@ export async function buildMyBackupSnapshot(): Promise<BackupSnapshot> {
     listMyFormulacoes(),
     listMyFormulatedFeedStock(),
   ]);
-  const selectedPalette = granja.selected_palette in THEME_PALETTES ? (granja.selected_palette as keyof typeof THEME_PALETTES) : 'blue';
+  const selectedPalette = granja.selected_palette ? (granja.selected_palette as ThemePaletteId) : 'blue';
 
   return normalizeBackupSnapshot({
     version: 1,
@@ -2316,6 +2324,8 @@ export async function buildMyBackupSnapshot(): Promise<BackupSnapshot> {
     },
     systemSettings: {
       selectedPalette,
+      fontFamily: 'inter',
+      borderRadius: 'rounded',
       eggSalePrice: Number(granja.egg_sale_price ?? 0),
       birdSalePrice: Number(granja.bird_sale_price ?? 0),
       litterSalePrice: Number(granja.litter_sale_price ?? 0),
@@ -2781,7 +2791,7 @@ export async function restoreMyBackupSnapshot(snapshot: BackupSnapshot) {
       protein: record.protein,
       energy: record.energy,
       calcium: record.calcium,
-      phosphorus: record.phosphorus,
+      phosphorus: record.phosphorusAvailable,
       methionine: record.methionine,
       met_cis: record.metCis,
       lysine: record.lysine,

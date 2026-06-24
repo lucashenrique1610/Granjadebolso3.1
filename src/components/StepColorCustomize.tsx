@@ -6,16 +6,19 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Paintbrush, CheckCircle, Circle, Palette } from 'lucide-react';
 import { ThemePaletteId, THEME_PALETTES } from '@/types';
+import { resolveThemePalette } from '@/lib/theme';
 
 interface StepColorCustomizeProps {
   selectedPalette: ThemePaletteId;
-  onChangePalette: (paletteId: ThemePaletteId) => void;
+  customPaletteColor?: string;
+  onChangePalette: (paletteId: ThemePaletteId, customColor?: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
 export default function StepColorCustomize({
   selectedPalette,
+  customPaletteColor,
   onChangePalette,
   onNext,
   onBack,
@@ -26,7 +29,7 @@ export default function StepColorCustomize({
   // Apply subtle visual dynamic adjustments as an effect (for double safety across frames)
   useEffect(() => {
     // When selectedPalette changes, standard custom brand properties automatically sync!
-    const activePaletteObj = THEME_PALETTES[selectedPalette];
+    const activePaletteObj = resolveThemePalette(selectedPalette, customPaletteColor);
     if (activePaletteObj) {
       document.documentElement.style.setProperty('--brand-primary', activePaletteObj.themeVars.primary);
       document.documentElement.style.setProperty('--brand-hover', activePaletteObj.themeVars.primaryHover);
@@ -34,7 +37,7 @@ export default function StepColorCustomize({
       document.documentElement.style.setProperty('--brand-bg', activePaletteObj.themeVars.bgContainer);
       document.documentElement.style.setProperty('--brand-main', activePaletteObj.themeVars.bgMain);
     }
-  }, [selectedPalette]);
+  }, [selectedPalette, customPaletteColor]);
 
   return (
     <div className="bg-brand-main min-h-screen flex flex-col font-sans antialiased text-[#0f1c2b]">
@@ -111,6 +114,27 @@ export default function StepColorCustomize({
               </button>
             );
           })}
+
+          {selectedPalette === 'custom' && (
+            <div className="p-4 bg-white border border-brand-primary rounded-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <span className="text-sm font-bold text-[#0f1c2b]">Escolha sua cor HEX:</span>
+              <div className="flex gap-4 items-center">
+                <input
+                  type="color"
+                  value={customPaletteColor || '#6366f1'}
+                  onChange={(e) => onChangePalette('custom', e.target.value)}
+                  className="w-12 h-12 rounded-xl cursor-pointer p-1"
+                />
+                <input
+                  type="text"
+                  value={customPaletteColor || '#6366f1'}
+                  onChange={(e) => onChangePalette('custom', e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none"
+                  placeholder="#HEX"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Dynamic Warning Card */}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SystemSettingsData, THEME_PALETTES } from '@/types';
+import { resolveThemePalette } from '@/lib/theme';
 import { searchCity } from '@/lib/weather';
 
 interface SistemaPageProps {
@@ -7,7 +8,7 @@ interface SistemaPageProps {
   isSyncing?: boolean;
   errorMessage?: string;
   onSave: (data: SystemSettingsData) => Promise<void> | void;
-  onPreviewPaletteChange: (paletteId: SystemSettingsData['selectedPalette']) => void;
+  onPreviewPaletteChange: (paletteId: SystemSettingsData['selectedPalette'], customColor?: string) => void;
 }
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -74,7 +75,7 @@ export default function SistemaPage({
 
   const summary = useMemo(
     () => [
-      { label: 'Paleta ativa', value: THEME_PALETTES[draft.selectedPalette].name },
+      { label: 'Paleta ativa', value: resolveThemePalette(draft.selectedPalette, draft.customPaletteColor).name },
       { label: 'Ovos', value: currencyFormatter.format(draft.eggSalePrice) },
       { label: 'Aves', value: currencyFormatter.format(draft.birdSalePrice) },
       { label: 'Cama aviária', value: currencyFormatter.format(draft.litterSalePrice) },
@@ -124,25 +125,6 @@ export default function SistemaPage({
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Paleta de cores</span>
-            <select
-              value={draft.selectedPalette}
-              onChange={(event) => {
-                const nextPalette = event.target.value as SystemSettingsData['selectedPalette'];
-                setDraft((prev) => ({ ...prev, selectedPalette: nextPalette }));
-                onPreviewPaletteChange(nextPalette);
-              }}
-              className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none transition-colors focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
-            >
-              {Object.values(THEME_PALETTES).map((palette) => (
-                <option key={palette.id} value={palette.id}>
-                  {palette.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <label className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Preço de venda do ovo</span>
             <input

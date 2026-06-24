@@ -39,8 +39,10 @@ import FornecedorPage from '@/pages/FornecedorPage';
 import GalpoesPage from '@/pages/GalpoesPage';
 import ProfissionaisPage from '@/pages/ProfissionaisPage';
 import InicioPage from '@/pages/InicioPage';
+import InvestimentosPage from '@/pages/InvestimentosPage';
 import ManejoPage from '@/pages/ManejoPage';
 import PerfilPage from '@/pages/PerfilPage';
+import PersonalizacaoPage from '@/pages/PersonalizacaoPage';
 import RelatoriosPage from '@/pages/RelatoriosPage';
 import SistemaPage from '@/pages/SistemaPage';
 import VendasPage from '@/pages/VendasPage';
@@ -114,7 +116,7 @@ interface AppShellProps {
   onUpdatePersonalProfile: (personal: Omit<UserPersonalData, 'password'>) => void;
   onUpdateFarmProfile: (farmProfile: FarmProfileData) => void;
   onUpdateSystemSettings: (systemSettings: SystemSettingsData) => void;
-  onPreviewSystemPaletteChange: (paletteId: SystemSettingsData['selectedPalette']) => void;
+  onPreviewSystemPaletteChange: (paletteId: SystemSettingsData['selectedPalette'], customColor?: string) => void;
 }
 
 const DEFAULT_BACKUP_AUTOMATION: BackupAutomationSettings = {
@@ -273,7 +275,7 @@ export default function AppShell({
 
     if (granja) {
       const selectedPalette =
-        granja.selected_palette in THEME_PALETTES ? (granja.selected_palette as SystemSettingsData['selectedPalette']) : 'blue';
+        granja.selected_palette ? (granja.selected_palette as SystemSettingsData['selectedPalette']) : 'blue';
       setBackupAutomation(getBackupAutomationSettingsFromGranja(granja));
 
       onUpdateFarmProfile({
@@ -287,6 +289,8 @@ export default function AppShell({
 
       onUpdateSystemSettings({
         selectedPalette,
+        fontFamily: appState.systemSettings.fontFamily || 'inter',
+        borderRadius: appState.systemSettings.borderRadius || 'rounded',
         eggSalePrice: Number(granja.egg_sale_price ?? 0),
         birdSalePrice: Number(granja.bird_sale_price ?? 0),
         litterSalePrice: Number(granja.litter_sale_price ?? 0),
@@ -982,7 +986,7 @@ export default function AppShell({
         city: saved.city,
         birdCount: saved.bird_count,
         selectedPalette:
-          saved.selected_palette in THEME_PALETTES
+          saved.selected_palette
             ? (saved.selected_palette as FarmProfileData['selectedPalette'])
             : payload.selectedPalette,
         marketingSource: saved.marketing_source,
@@ -1023,10 +1027,11 @@ export default function AppShell({
         : await createMyGranja(granjaPayload);
 
       onUpdateSystemSettings({
-        selectedPalette:
-          saved.selected_palette in THEME_PALETTES
-            ? (saved.selected_palette as SystemSettingsData['selectedPalette'])
-            : payload.selectedPalette,
+        selectedPalette: saved.selected_palette
+          ? (saved.selected_palette as SystemSettingsData['selectedPalette'])
+          : payload.selectedPalette,
+        fontFamily: payload.fontFamily || 'inter',
+        borderRadius: payload.borderRadius || 'rounded',
         eggSalePrice: Number(saved.egg_sale_price ?? payload.eggSalePrice),
         birdSalePrice: Number(saved.bird_sale_price ?? payload.birdSalePrice),
         litterSalePrice: Number(saved.litter_sale_price ?? payload.litterSalePrice),
@@ -1209,10 +1214,12 @@ export default function AppShell({
       fornecedor: 'Cadastro • Fornecedor',
       compras: 'Gestão • Compras',
       financeiro: 'Gestão • Financeiro',
+      investimentos: 'Gestão • Investimentos',
       relatorios: 'Gestão • Relatórios',
       clima: 'Monitoramento • Clima',
       conhecimento: 'Monitoramento • Conhecimento',
       perfil: 'Configurações • Perfil',
+      personalizacao: 'Configurações • Personalização',
       sistema: 'Configurações • Sistema',
       backups: 'Configurações • Backups',
       assinatura: 'Configurações • Assinatura',
@@ -1388,6 +1395,8 @@ export default function AppShell({
             animais={animalRecords}
           />
         );
+      case 'investimentos':
+        return <InvestimentosPage />;
       case 'relatorios':
         return (
           <RelatoriosPage
@@ -1431,6 +1440,18 @@ export default function AppShell({
             isSyncing={isProfileSyncing}
             errorMessage={profileError ?? undefined}
             onSave={saveSystemSettings}
+            onPreviewPaletteChange={onPreviewSystemPaletteChange}
+          />
+        );
+      case 'personalizacao':
+        return (
+          <PersonalizacaoPage
+            settings={appState.systemSettings}
+            isDarkMode={isDarkMode}
+            isSyncing={isProfileSyncing}
+            errorMessage={profileError ?? undefined}
+            onSave={saveSystemSettings}
+            onToggleDarkMode={onToggleDarkMode}
             onPreviewPaletteChange={onPreviewSystemPaletteChange}
           />
         );

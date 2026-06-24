@@ -4,7 +4,8 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { FarmConfigData, FarmProfileData, OnboardingState, SystemSettingsData, ThemePaletteId, THEME_PALETTES, UserPersonalData } from '@/types';
+import { FarmConfigData, FarmProfileData, OnboardingState, SystemSettingsData, ThemePaletteId, UserPersonalData, FONT_OPTIONS, RADIUS_OPTIONS } from '@/types';
+import { resolveThemePalette } from '@/lib/theme';
 import AppShell from '@/components/AppShell';
 import LoginScreen from '@/components/LoginScreen';
 import OnboardingHero from '@/components/OnboardingHero';
@@ -45,6 +46,8 @@ const initialDefaultState: OnboardingState = {
   marketingSource: '',
   systemSettings: {
     selectedPalette: 'blue',
+    fontFamily: 'inter',
+    borderRadius: 'rounded',
     eggSalePrice: 0,
     birdSalePrice: 0,
     litterSalePrice: 0,
@@ -238,7 +241,7 @@ export default function App() {
 
         saveState((prev) => {
           const nextPalette =
-            granja?.selected_palette && (granja.selected_palette in THEME_PALETTES)
+            granja?.selected_palette
               ? (granja.selected_palette as ThemePaletteId)
               : prev.selectedPalette;
 
@@ -263,6 +266,8 @@ export default function App() {
             marketingSource: granja?.marketing_source ?? prev.marketingSource,
             systemSettings: {
               selectedPalette: nextPalette,
+              fontFamily: prev.systemSettings.fontFamily || 'inter',
+              borderRadius: prev.systemSettings.borderRadius || 'rounded',
               eggSalePrice: Number(granja?.egg_sale_price ?? prev.systemSettings.eggSalePrice ?? 0),
               birdSalePrice: Number(granja?.bird_sale_price ?? prev.systemSettings.birdSalePrice ?? 0),
               litterSalePrice: Number(granja?.litter_sale_price ?? prev.systemSettings.litterSalePrice ?? 0),
@@ -328,13 +333,24 @@ export default function App() {
 
   // Immediate live theme sync
   useEffect(() => {
-    const activePaletteObj = THEME_PALETTES[appState.selectedPalette] || THEME_PALETTES.blue;
+    const activePaletteObj = resolveThemePalette(appState.selectedPalette, appState.systemSettings.customPaletteColor);
     document.documentElement.style.setProperty('--brand-primary', activePaletteObj.themeVars.primary);
     document.documentElement.style.setProperty('--brand-hover', activePaletteObj.themeVars.primaryHover);
     document.documentElement.style.setProperty('--brand-active', activePaletteObj.themeVars.primaryActive);
     document.documentElement.style.setProperty('--brand-bg', activePaletteObj.themeVars.bgContainer);
     document.documentElement.style.setProperty('--brand-main', activePaletteObj.themeVars.bgMain);
-  }, [appState.selectedPalette]);
+
+    // Inject font & border-radius
+    const fontOption = FONT_OPTIONS.find((f) => f.id === appState.systemSettings.fontFamily);
+    if (fontOption) {
+      document.documentElement.style.setProperty('--app-font', fontOption.css);
+      document.body.style.fontFamily = fontOption.css;
+    }
+    const radiusOption = RADIUS_OPTIONS.find((r) => r.id === appState.systemSettings.borderRadius);
+    if (radiusOption) {
+      document.documentElement.style.setProperty('--app-radius', radiusOption.value);
+    }
+  }, [appState.selectedPalette, appState.systemSettings.fontFamily, appState.systemSettings.borderRadius]);
 
   // View transitions helper
   const handleStartOnboarding = () => {
@@ -362,13 +378,14 @@ export default function App() {
     }));
   };
 
-  const handlePaletteSelect = (paletteId: ThemePaletteId) => {
+  const handlePaletteSelect = (paletteId: ThemePaletteId, customColor?: string) => {
     saveState((prev) => ({
       ...prev,
       selectedPalette: paletteId,
       systemSettings: {
         ...prev.systemSettings,
         selectedPalette: paletteId,
+        ...(customColor ? { customPaletteColor: customColor } : {}),
       },
     }));
   };
@@ -518,13 +535,14 @@ export default function App() {
     }));
   };
 
-  const handleSystemPalettePreview = (paletteId: SystemSettingsData['selectedPalette']) => {
+  const handleSystemPalettePreview = (paletteId: SystemSettingsData['selectedPalette'], customColor?: string) => {
     setAppState((prev) => ({
       ...prev,
       selectedPalette: paletteId,
       systemSettings: {
         ...prev.systemSettings,
         selectedPalette: paletteId,
+        customPaletteColor: customColor || prev.systemSettings.customPaletteColor,
       },
     }));
   };

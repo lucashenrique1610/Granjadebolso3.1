@@ -25,6 +25,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { OnboardingState, ThemePaletteId, THEME_PALETTES } from '@/types';
+import { resolveThemePalette } from '@/lib/theme';
 import { isSupabaseConfigured, listUsers, SupabaseUserRow } from '@/lib/supabase';
 
 interface DashboardProps {
@@ -113,7 +114,7 @@ export default function Dashboard({
 
   // Apply colors dynamically
   useEffect(() => {
-    const activePaletteObj = THEME_PALETTES[selectedPalette];
+    const activePaletteObj = resolveThemePalette(selectedPalette, appState.systemSettings?.customPaletteColor);
     if (activePaletteObj) {
       document.documentElement.style.setProperty('--brand-primary', activePaletteObj.themeVars.primary);
       document.documentElement.style.setProperty('--brand-hover', activePaletteObj.themeVars.primaryHover);
@@ -299,7 +300,7 @@ export default function Dashboard({
               <Palette className="w-4 h-4 flex-shrink-0" />
               <div className="text-left">
                 <span className="block text-[10px] font-bold uppercase tracking-wider opacity-70">Aparência</span>
-                <span className="text-xs font-extrabold">{THEME_PALETTES[selectedPalette].name}</span>
+                <span className="text-xs font-extrabold">{resolveThemePalette(selectedPalette, appState.systemSettings?.customPaletteColor).name}</span>
               </div>
             </div>
           </div>

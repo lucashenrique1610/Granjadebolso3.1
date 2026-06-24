@@ -21,6 +21,8 @@ import {
   UserCircle2,
   SlidersHorizontal,
   DatabaseBackup,
+  Palette,
+  Calculator,
 } from 'lucide-react';
 
 export type RouteId =
@@ -36,10 +38,12 @@ export type RouteId =
   | 'compras'
   | 'financeiro'
   | 'relatorios'
+  | 'investimentos'
   | 'clima'
   | 'conhecimento'
   | 'perfil'
   | 'sistema'
+  | 'personalizacao'
   | 'backups'
   | 'assinatura';
 
@@ -68,6 +72,7 @@ type MenuCategory =
 // SidebarGroupItem — proper React component so useState hooks are always valid
 // ---------------------------------------------------------------------------
 interface SidebarGroupItemProps {
+  key?: React.Key;
   cat: Extract<MenuCategory, { kind: 'group' }>;
   isCollapsed: boolean;
   isDarkMode: boolean;
@@ -305,6 +310,7 @@ export default function Sidebar({
         items: [
           { id: 'compras', label: 'Compras', icon: <ShoppingCart className="w-4 h-4" /> },
           { id: 'financeiro', label: 'Financeiro', icon: <Wallet className="w-4 h-4" /> },
+          { id: 'investimentos', label: 'Investimentos', icon: <Calculator className="w-4 h-4" /> },
           { id: 'relatorios', label: 'Relatórios', icon: <FileText className="w-4 h-4" /> },
         ],
       },
@@ -325,6 +331,7 @@ export default function Sidebar({
         icon: <Cog className="w-5 h-5" />,
         items: [
           { id: 'perfil', label: 'Perfil', icon: <UserCircle2 className="w-4 h-4" /> },
+          { id: 'personalizacao', label: 'Personalização', icon: <Palette className="w-4 h-4" /> },
           { id: 'sistema', label: 'Sistema', icon: <SlidersHorizontal className="w-4 h-4" /> },
           { id: 'backups', label: 'Backups', icon: <DatabaseBackup className="w-4 h-4" /> },
           { id: 'assinatura', label: 'Assinatura', icon: <Cog className="w-4 h-4" /> },
@@ -377,6 +384,9 @@ export default function Sidebar({
   const handleNavigate = (route: RouteId) => {
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     onNavigate(route);
     setTimeout(() => { isNavigatingRef.current = false; }, 300);
   };
@@ -522,7 +532,7 @@ export default function Sidebar({
     { id: 'inicio', label: 'Início', icon: <Home className="w-5 h-5" />, routes: ['inicio'] },
     { id: 'manejo', label: 'Operações', icon: <ClipboardList className="w-5 h-5" />, routes: ['manejo', 'vendas', 'formulacao'] },
     { id: 'animais', label: 'Cadastro', icon: <Bird className="w-5 h-5" />, routes: ['animais', 'cliente', 'fornecedor', 'galpoes', 'profissionais'] },
-    { id: 'financeiro', label: 'Gestão', icon: <Wallet className="w-5 h-5" />, routes: ['compras', 'financeiro', 'relatorios'] },
+    { id: 'financeiro', label: 'Gestão', icon: <Wallet className="w-5 h-5" />, routes: ['compras', 'financeiro', 'investimentos', 'relatorios'] },
   ];
 
   const isMoreActive = ['clima', 'conhecimento', 'perfil', 'sistema', 'backups', 'assinatura'].includes(activeRoute);

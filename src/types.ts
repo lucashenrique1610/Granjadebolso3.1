@@ -19,11 +19,33 @@ export interface FarmConfigData {
 
 export interface FarmProfileData extends FarmConfigData {
   selectedPalette: ThemePaletteId;
+  customPaletteColor?: string;
   marketingSource: string;
 }
 
+export type ThemeFontFamily = 'inter' | 'roboto' | 'outfit' | 'poppins' | 'nunito';
+export type ThemeBorderRadius = 'sharp' | 'soft' | 'rounded' | 'pill';
+
+export const FONT_OPTIONS: { id: ThemeFontFamily; name: string; css: string }[] = [
+  { id: 'inter', name: 'Inter', css: '"Inter", ui-sans-serif, system-ui, sans-serif' },
+  { id: 'roboto', name: 'Roboto', css: '"Roboto", ui-sans-serif, system-ui, sans-serif' },
+  { id: 'outfit', name: 'Outfit', css: '"Outfit", ui-sans-serif, system-ui, sans-serif' },
+  { id: 'poppins', name: 'Poppins', css: '"Poppins", ui-sans-serif, system-ui, sans-serif' },
+  { id: 'nunito', name: 'Nunito', css: '"Nunito", ui-sans-serif, system-ui, sans-serif' },
+];
+
+export const RADIUS_OPTIONS: { id: ThemeBorderRadius; name: string; value: string; preview: string }[] = [
+  { id: 'sharp', name: 'Quadrado', value: '0.375rem', preview: '6px' },
+  { id: 'soft', name: 'Suave', value: '0.75rem', preview: '12px' },
+  { id: 'rounded', name: 'Arredondado', value: '1rem', preview: '16px' },
+  { id: 'pill', name: 'Pílula', value: '1.5rem', preview: '24px' },
+];
+
 export interface SystemSettingsData {
   selectedPalette: ThemePaletteId;
+  customPaletteColor?: string;
+  fontFamily: ThemeFontFamily;
+  borderRadius: ThemeBorderRadius;
   eggSalePrice: number;
   birdSalePrice: number;
   litterSalePrice: number;
@@ -64,7 +86,7 @@ export interface BackupAutomationSettings {
   keepCount: number;
 }
 
-export type ThemePaletteId = 'blue' | 'green' | 'brown' | 'yellow' | 'minimal';
+export type ThemePaletteId = 'blue' | 'green' | 'brown' | 'yellow' | 'minimal' | 'custom';
 
 export interface ThemePalette {
   id: ThemePaletteId;
@@ -411,10 +433,34 @@ export interface WeatherData {
 
 export interface Recommendation {
   id: string;
-  tipo: 'alerta' | 'recomendacao';
+  tipo: 'alerta' | 'recomendacao' | 'sucesso';
+  categoria?: 'clima' | 'nutricao' | 'sanidade' | 'producao' | 'geral';
   titulo: string;
   descricao: string;
   prioridade: 'alta' | 'media' | 'baixa';
+  knowledgeModuleId?: string;
+}
+
+export type InvestmentCategory = 'infraestrutura' | 'equipamentos' | 'mao_de_obra' | 'licencas' | 'outros';
+
+export interface InvestmentItem {
+  id: string;
+  projectId: string;
+  categoria: InvestmentCategory;
+  descricao: string;
+  quantidade: number;
+  precoUnitario: number;
+}
+
+export interface InvestmentProject {
+  id: string;
+  nome: string;
+  status: 'planejamento' | 'em_andamento' | 'concluido' | 'cancelado';
+  dataInicio: string;
+  dataConclusao?: string;
+  items: InvestmentItem[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BackupSnapshot {
@@ -528,62 +574,74 @@ export interface KnowledgeModule {
 export const THEME_PALETTES: Record<ThemePaletteId, ThemePalette> = {
   blue: {
     id: 'blue',
-    name: 'Azul Corporativo',
-    colors: ['#00457e', '#005da6', '#d3e3ff'],
+    name: 'Corporate (Azul Indigo)',
+    colors: ['#3b82f6', '#2563eb', '#eff6ff'],
     themeVars: {
-      primary: 'rgb(0, 93, 166)',
-      primaryHover: 'rgb(0, 72, 130)',
-      primaryActive: 'rgb(0, 50, 90)',
-      bgContainer: 'rgba(0, 93, 166, 0.08)',
-      bgMain: 'rgb(248, 249, 255)',
+      primary: 'rgb(59, 130, 246)',
+      primaryHover: 'rgb(37, 99, 235)',
+      primaryActive: 'rgb(29, 78, 216)',
+      bgContainer: 'rgba(59, 130, 246, 0.08)',
+      bgMain: 'rgb(248, 250, 252)',
     },
   },
   green: {
     id: 'green',
-    name: 'Verde Campo',
-    colors: ['#2d6a4f', '#52b788', '#d8f3dc'],
+    name: 'Tech Agro (Esmeralda)',
+    colors: ['#10b981', '#059669', '#ecfdf5'],
     themeVars: {
-      primary: 'rgb(45, 106, 79)',
-      primaryHover: 'rgb(30, 80, 58)',
-      primaryActive: 'rgb(18, 55, 39)',
-      bgContainer: 'rgba(45, 106, 79, 0.08)',
-      bgMain: 'rgb(244, 248, 245)',
+      primary: 'rgb(16, 185, 129)',
+      primaryHover: 'rgb(5, 150, 105)',
+      primaryActive: 'rgb(4, 120, 87)',
+      bgContainer: 'rgba(16, 185, 129, 0.08)',
+      bgMain: 'rgb(244, 250, 246)',
     },
   },
   brown: {
     id: 'brown',
-    name: 'Terra Fértil',
-    colors: ['#603808', '#d68102', '#ffddb3'],
+    name: 'Terracotta (Laranja Quente)',
+    colors: ['#ea580c', '#c2410c', '#fff7ed'],
     themeVars: {
-      primary: 'rgb(139, 90, 43)',
-      primaryHover: 'rgb(110, 70, 30)',
-      primaryActive: 'rgb(80, 50, 20)',
-      bgContainer: 'rgba(139, 90, 43, 0.08)',
+      primary: 'rgb(234, 88, 12)',
+      primaryHover: 'rgb(194, 65, 12)',
+      primaryActive: 'rgb(154, 52, 18)',
+      bgContainer: 'rgba(234, 88, 12, 0.08)',
       bgMain: 'rgb(255, 251, 248)',
     },
   },
   yellow: {
     id: 'yellow',
-    name: 'Sol da Manhã',
-    colors: ['#7a5900', '#fabd00', '#ffdf91'],
+    name: 'Sunset (Amarelo Ouro)',
+    colors: ['#eab308', '#ca8a04', '#fefce8'],
     themeVars: {
-      primary: 'rgb(170, 120, 0)',
-      primaryHover: 'rgb(130, 90, 0)',
-      primaryActive: 'rgb(90, 60, 0)',
-      bgContainer: 'rgba(170, 120, 0, 0.08)',
-      bgMain: 'rgb(255, 254, 245)',
+      primary: 'rgb(234, 179, 8)',
+      primaryHover: 'rgb(202, 138, 4)',
+      primaryActive: 'rgb(161, 98, 7)',
+      bgContainer: 'rgba(234, 179, 8, 0.08)',
+      bgMain: 'rgb(254, 252, 232)',
     },
   },
   minimal: {
     id: 'minimal',
-    name: 'Minimalista',
-    colors: ['#1b1b1f', '#44474e', '#e1e2e9'],
+    name: 'Obsidian (Escuro Minimalista)',
+    colors: ['#334155', '#1e293b', '#f8fafc'],
     themeVars: {
-      primary: 'rgb(27, 27, 31)',
-      primaryHover: 'rgb(68, 71, 78)',
-      primaryActive: 'rgb(15, 15, 18)',
-      bgContainer: 'rgba(27, 27, 31, 0.08)',
-      bgMain: 'rgb(248, 248, 248)',
+      primary: 'rgb(51, 65, 85)',
+      primaryHover: 'rgb(30, 41, 59)',
+      primaryActive: 'rgb(15, 23, 42)',
+      bgContainer: 'rgba(51, 65, 85, 0.08)',
+      bgMain: 'rgb(248, 250, 252)',
+    },
+  },
+  custom: {
+    id: 'custom',
+    name: 'Personalizada (Sua Marca)',
+    colors: ['#6366f1', '#4f46e5', '#eef2ff'],
+    themeVars: {
+      primary: 'rgb(99, 102, 241)',
+      primaryHover: 'rgb(79, 70, 229)',
+      primaryActive: 'rgb(67, 56, 202)',
+      bgContainer: 'rgba(99, 102, 241, 0.08)',
+      bgMain: 'rgb(248, 250, 252)',
     },
   },
 };

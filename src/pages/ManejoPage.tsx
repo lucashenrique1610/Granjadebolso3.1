@@ -17,6 +17,13 @@ import {
   AlertCircle,
   CheckCircle2,
   AlertOctagon,
+  Sparkles,
+  CloudLightning,
+  Activity,
+  Leaf,
+  Egg,
+  ShieldAlert,
+  Lightbulb,
 } from 'lucide-react';
 import {
   AnimalRecord,
@@ -34,11 +41,14 @@ import {
   VeterinaryStockRecord,
   ManejoRecord,
   DisponibilidadeVenda,
-  WeatherData,
   Recommendation,
   FormulationRecord,
   FormulatedFeedStockRecord,
+  KnowledgeModule,
+  UnifiedWeatherData,
 } from '@/types';
+import { KNOWLEDGE_MODULES } from '@/data/knowledge';
+import KnowledgeModulePage from '@/components/KnowledgeModulePage';
 import {
   buildHealthReport,
   buildMortalityReport,
@@ -448,13 +458,30 @@ export default function ManejoPage({
     to: '',
   });
 
-  const [weatherData, setWeatherData] = useState<WeatherData>({
-    temperatura: 25,
-    umidade: 60,
-    velocidadeVento: 10,
-    chuvaMm: 0,
-    ultimaAtualizacao: new Date().toISOString(),
-  });
+  const [weatherData, setWeatherData] = useState<UnifiedWeatherData | null>(null);
+
+  useEffect(() => {
+    const cached = localStorage.getItem('climaLocal');
+    if (cached) {
+      try {
+        setWeatherData(JSON.parse(cached));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('clima-sync');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'WEATHER_UPDATE' && event.data?.data) {
+          setWeatherData(event.data.data);
+        }
+      };
+      return () => channel.close();
+    }
+  }, []);
+
+  const [selectedKnowledgeModule, setSelectedKnowledgeModule] = useState<KnowledgeModule | null>(null);
 
   // Calculate feed stock and days remaining
   const feedSummary = useMemo(() => {
@@ -558,79 +585,168 @@ export default function ManejoPage({
     [animals, filteredMortalityRecords],
   );
 
-  // Calculate recommendations based on weather and manejo data
+  // Assistente Inteligente: Context-aware recommendations
   const recommendations = useMemo(() => {
     const recs: Recommendation[] = [];
+    const now = new Date();
 
-    // Weather-based recommendations
-    if (weatherData.temperatura > 30) {
-      recs.push({
-        id: 'heat-stress',
-        tipo: 'alerta',
-        titulo: 'Risco de estresse térmico',
-        descricao: 'A temperatura está acima de 30°C. Aumente a oferta de água fria, fracione a ração nos horários mais frescos e reduza a energia da dieta.',
-        prioridade: 'alta',
-      });
-    } else if (weatherData.temperatura < 15) {
-      recs.push({
-        id: 'cold-weather',
-        tipo: 'recomendacao',
-        titulo: 'Baixa temperatura',
-        descricao: 'Garanta proteção térmica no galpão e aumente a densidade calórica da ração.',
-        prioridade: 'media',
-      });
-    }
+    // 1. Context Analysis
+    const activeAnimals = animals.filter(a => getAnimalCurrentQuantity(a) > 0);
+    const hasCria = activeAnimals.some(a => getPhaseByAge(getBirdAgeInDays(a.birthDate)) === 'inicial_1_21');
+    const hasPostura = activeAnimals.some(a => getPhaseByAge(getBirdAgeInDays(a.birthDate)) === 'postura' || getPhaseByAge(getBirdAgeInDays(a.birthDate)) === 'pre_postura_106_126');
+    const totalBirds = activeAnimals.reduce((acc, a) => acc + getAnimalCurrentQuantity(a), 0);
 
-    if (weatherData.umidade > 80) {
-      recs.push({
-        id: 'high-humidity',
-        tipo: 'alerta',
-        titulo: 'Umidade elevada',
-        descricao: 'Alto risco de doenças respiratórias. Reforce a secagem ou troca da cama das aves e garanta ventilação adequada.',
-        prioridade: 'alta',
-      });
-    }
+    // 2. Weather & Climate Insights
+    if (weatherData) {
+      const temp = weatherData.temperature;
+      const feelsLike = weatherData.feelsLike;
+      const hum = weatherData.humidity;
 
-    if (weatherData.chuvaMm > 10) {
-      recs.push({
-        id: 'heavy-rain',
-        tipo: 'alerta',
-        titulo: 'Chuva forte',
-        descricao: 'Verifique se o galpão está protegido contra infiltrações e mantenha a cama seca.',
-        prioridade: 'alta',
-      });
-    }
-
-    // Consumption-based recommendations
-    if (manejoRecords.length >= 6) {
-      const last6Days = [...manejoRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
-      const avgConsumption = last6Days.reduce((sum, r) => sum + r.racaoKg, 0) / last6Days.length;
-      const lastRecord = last6Days[0];
-      
-      if (lastRecord && lastRecord.racaoKg < avgConsumption * 0.7) {
+      // Cria risk: Very sensitive to cold
+      if (hasCria && (temp < 28 || feelsLike < 28)) {
         recs.push({
-          id: 'low-consumption',
+          id: 'cria-cold-risk',
           tipo: 'alerta',
-          titulo: 'Queda no consumo de ração',
-          descricao: `O consumo de hoje (${lastRecord.racaoKg} kg) está abaixo da média semanal (${avgConsumption.toFixed(1)} kg). Verifique a saúde das aves.`,
+          categoria: 'clima',
+          titulo: 'Alerta Crítico: Lotes em Fase de Cria',
+          descricao: `A sensação térmica está em ${Math.round(feelsLike)}°C. Pintinhos não regulam a própria temperatura. Ligue as campânulas/aquecedores imediatamente para evitar amontoamento e mortalidade.`,
+          prioridade: 'alta',
+          knowledgeModuleId: 'cria',
+        });
+      }
+
+      // Heat stress (general)
+      if (temp >= 30 || feelsLike >= 32) {
+        recs.push({
+          id: 'heat-stress',
+          tipo: 'alerta',
+          categoria: 'clima',
+          titulo: 'Risco Elevado de Estresse Térmico',
+          descricao: `Temperatura/Sensação térmica acima de 30°C. Aumente a vazão dos bebedouros, fracione a ração nos horários mais frescos (início da manhã/fim da tarde) e ligue ventiladores/nebulizadores.`,
+          prioridade: 'alta',
+          knowledgeModuleId: 'bem-estar-animal',
+        });
+      } else if (temp < 15) {
+        recs.push({
+          id: 'cold-stress',
+          tipo: 'alerta',
+          categoria: 'clima',
+          titulo: 'Queda Brusca de Temperatura',
+          descricao: `Os termômetros marcam ${Math.round(temp)}°C. Baixe as cortinas de leste/oeste para bloquear ventos encanados, mas mantenha frestas no teto para renovação de ar (evitar amônia).`,
           prioridade: 'media',
+          knowledgeModuleId: 'instalacoes',
+        });
+      }
+
+      // Humidity & Sanity
+      if (hum > 80) {
+        recs.push({
+          id: 'high-humidity',
+          tipo: 'alerta',
+          categoria: 'sanidade',
+          titulo: 'Alerta de Umidade: Cama e Cascudinho',
+          descricao: `Umidade excessiva (${hum}%). Alto risco de coccidiose, amônia tóxica e proliferação de cascudinhos na cama do aviário. Revire a cama e adicione cal se necessário.`,
+          prioridade: 'alta',
+          knowledgeModuleId: 'sanidade',
+        });
+      }
+
+      if (weatherData.precipitation > 15) {
+        recs.push({
+          id: 'heavy-rain',
+          tipo: 'recomendacao',
+          categoria: 'clima',
+          titulo: 'Previsão de Chuva Forte',
+          descricao: 'Verifique imediatamente telhados e calhas. Vazamentos sobre a cama geram crostas e favorecem doenças respiratórias severas.',
+          prioridade: 'media',
+          knowledgeModuleId: 'instalacoes',
         });
       }
     }
 
-    // Default positive recommendation if no alerts
-    if (recs.length === 0) {
+    // 3. Nutrition & Performance Insights
+    if (manejoRecords.length >= 3) {
+      const sortedRecords = [...manejoRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const recent = sortedRecords.slice(0, 3);
+      const avgRecentFeed = recent.reduce((sum, r) => sum + r.racaoKg, 0) / recent.length;
+      const lastRecord = recent[0];
+      
+      // Consumption drop
+      if (lastRecord && avgRecentFeed > 0 && lastRecord.racaoKg < avgRecentFeed * 0.8) {
+        recs.push({
+          id: 'low-consumption',
+          tipo: 'alerta',
+          categoria: 'nutricao',
+          titulo: 'Atenção: Queda no Consumo de Ração',
+          descricao: `O consumo de ontem (${lastRecord.racaoKg}kg) caiu mais de 20% em relação à média recente. Isso pode indicar água quente nas tubulações, micotoxinas na ração ou início de um desafio sanitário.`,
+          prioridade: 'alta',
+          knowledgeModuleId: 'nutricao',
+        });
+      }
+
+      // Egg drop
+      if (hasPostura) {
+        const avgEggs = recent.reduce((sum, r) => sum + (r.ovosColetados - r.ovosDanificados), 0) / recent.length;
+        const lastEggs = lastRecord ? (lastRecord.ovosColetados - lastRecord.ovosDanificados) : 0;
+        if (lastRecord && avgEggs > 0 && lastEggs < avgEggs * 0.85) {
+          recs.push({
+            id: 'egg-drop',
+            tipo: 'alerta',
+            categoria: 'producao',
+            titulo: 'Alerta: Queda na Postura',
+            descricao: `Foram colhidos ${lastEggs} ovos válidos ontem, abaixo da média de ${Math.round(avgEggs)}. Verifique imediatamente o fornecimento de água, horas de luz (fotoperíodo) e a qualidade da ração.`,
+            prioridade: 'alta',
+            knowledgeModuleId: 'producao-de-ovos',
+          });
+        }
+      }
+    }
+
+    // 4. General Daily Tips (Rotational/Contextual)
+    if (totalBirds > 0) {
+      const todayDay = now.getDate();
+      const dailyTips = [
+        {
+          titulo: 'Dica do Dia: Limpeza de Bebedouros',
+          descricao: 'Biofilmes nos canos reduzem a eficácia de vacinas e medicamentos. Faça a descarga das linhas de água pelo menos 1x por semana usando flush.',
+          modulo: 'manejo-da-agua'
+        },
+        {
+          titulo: 'Dica do Dia: Pesagem Semanal',
+          descricao: 'Pese sempre de 1% a 2% das aves do lote no mesmo dia e horário toda semana. A uniformidade ideal deve estar acima de 80%.',
+          modulo: 'indicadores-zootecnicos'
+        },
+        {
+          titulo: 'Dica do Dia: Biosseguridade Básica',
+          descricao: 'Mantenha o pedilúvio na entrada do galpão sempre abastecido com desinfetante renovado e limite o acesso de visitantes.',
+          modulo: 'biosseguridade'
+        }
+      ];
+      
+      const tip = dailyTips[todayDay % dailyTips.length];
       recs.push({
-        id: 'good-conditions',
+        id: `daily-tip-${todayDay}`,
         tipo: 'recomendacao',
-        titulo: 'Condições favoráveis',
-        descricao: 'As condições climáticas e de manejo estão adequadas. Continue com as práticas atuais.',
+        categoria: 'geral',
+        titulo: tip.titulo,
+        descricao: tip.descricao,
         prioridade: 'baixa',
+        knowledgeModuleId: tip.modulo,
+      });
+    } else {
+      recs.push({
+        id: 'no-birds',
+        tipo: 'recomendacao',
+        categoria: 'geral',
+        titulo: 'Vazio Sanitário',
+        descricao: 'Não há lotes ativos no momento. Este é o período ideal para limpeza profunda, desinfecção das instalações e manutenção de equipamentos.',
+        prioridade: 'baixa',
+        knowledgeModuleId: 'instalacoes',
       });
     }
 
     return recs;
-  }, [weatherData, manejoRecords]);
+  }, [weatherData, manejoRecords, animals]);
 
   // Sort recommendations by priority
   const sortedRecommendations = useMemo(() => {
@@ -893,6 +1009,15 @@ export default function ManejoPage({
     { id: 'saude', label: 'Saúde' },
     { id: 'mortalidade', label: 'Mortalidade' },
   ];
+
+  if (selectedKnowledgeModule) {
+    return (
+      <KnowledgeModulePage
+        module={selectedKnowledgeModule}
+        onBack={() => setSelectedKnowledgeModule(null)}
+      />
+    );
+  }
 
   return (
     <div className="app-section space-y-6">
@@ -1475,141 +1600,100 @@ export default function ManejoPage({
         </section>
       )}
 
-      {/* Recomendações e Clima */}
+      {/* Assistente Inteligente de Manejo */}
       {activeSection === 'recomendacoes' && (
-        <section className="grid gap-6 xl:grid-cols-2">
-          {/* Clima */}
-          <div className="app-section-card">
-            <div className="flex items-center gap-3">
-              <Thermometer className="h-5 w-5 text-brand-primary" />
-              <h2 className="text-lg font-extrabold text-[#0f1c2b]">Clima Atual</h2>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <Thermometer className="h-4 w-4 text-orange-500" />
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Temperatura</div>
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{weatherData.temperatura}°C</div>
+        <section className="grid gap-6">
+          <div className="app-section-card relative overflow-hidden border-0 bg-white ring-1 ring-gray-200">
+            {/* Premium Gradient Background Effect */}
+            <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-brand-primary opacity-5 blur-3xl" />
+            
+            <div className="relative flex items-center gap-3 border-b border-gray-100 pb-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-primary to-brand-active text-white shadow-lg shadow-brand-primary/30">
+                <Sparkles className="h-5 w-5" />
               </div>
-              <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <Droplets className="h-4 w-4 text-blue-500" />
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Umidade</div>
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{weatherData.umidade}%</div>
-              </div>
-              <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <Wind className="h-4 w-4 text-gray-500" />
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Velocidade do Vento</div>
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{weatherData.velocidadeVento} km/h</div>
-              </div>
-              <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <Droplets className="h-4 w-4 text-cyan-500" />
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Chuva</div>
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{weatherData.chuvaMm} mm</div>
+              <div>
+                <h2 className="text-xl font-extrabold text-[#0f1c2b]">Assistente Inteligente</h2>
+                <p className="text-xs font-medium text-gray-500">Análise cruzada de clima, idade do lote e desempenho</p>
               </div>
             </div>
 
-            <div className="mt-4 text-xs text-gray-500">
-              Atualizado em: {new Date(weatherData.ultimaAtualizacao).toLocaleString('pt-BR')}
-            </div>
+            <div className="relative mt-6 grid gap-4">
+              {sortedRecommendations.map((rec) => {
+                let Icon = AlertCircle;
+                let bgClass = 'bg-gray-50';
+                let borderClass = 'border-gray-200';
+                let textClass = 'text-gray-800';
+                let iconColor = 'text-gray-500';
 
-            {/* Simulated Weather Controls for Demo */}
-            <div className="mt-6">
-              <h3 className="text-sm font-bold text-[#0f1c2b]">Simular Clima (Demo)</h3>
-              <div className="mt-4 grid gap-3">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs text-gray-500">Temperatura (°C)</span>
-                  <input
-                    type="range"
-                    min="5"
-                    max="45"
-                    value={weatherData.temperatura}
-                    onChange={(e) =>
-                      setWeatherData((prev) => ({ ...prev, temperatura: Number(e.target.value) }))
-                    }
-                  />
-                  <span className="text-xs text-gray-500 text-right">{weatherData.temperatura}°C</span>
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs text-gray-500">Umidade (%)</span>
-                  <input
-                    type="range"
-                    min="20"
-                    max="100"
-                    value={weatherData.umidade}
-                    onChange={(e) =>
-                      setWeatherData((prev) => ({ ...prev, umidade: Number(e.target.value) }))
-                    }
-                  />
-                  <span className="text-xs text-gray-500 text-right">{weatherData.umidade}%</span>
-                </label>
-              </div>
-            </div>
-          </div>
+                // Determine styles by priority and type
+                if (rec.tipo === 'alerta') {
+                  if (rec.prioridade === 'alta') {
+                    bgClass = 'bg-red-50/80';
+                    borderClass = 'border-red-200';
+                    textClass = 'text-red-900';
+                    iconColor = 'text-red-600';
+                  } else {
+                    bgClass = 'bg-amber-50/80';
+                    borderClass = 'border-amber-200';
+                    textClass = 'text-amber-900';
+                    iconColor = 'text-amber-600';
+                  }
+                } else if (rec.tipo === 'sucesso') {
+                  bgClass = 'bg-emerald-50/80';
+                  borderClass = 'border-emerald-200';
+                  textClass = 'text-emerald-900';
+                  iconColor = 'text-emerald-600';
+                } else {
+                  bgClass = 'bg-brand-main';
+                  borderClass = 'border-brand-primary/20';
+                  textClass = 'text-brand-active';
+                  iconColor = 'text-brand-primary';
+                }
 
-          {/* Recomendações */}
-          <div className="app-section-card">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-brand-primary" />
-              <h2 className="text-lg font-extrabold text-[#0f1c2b]">Recomendações</h2>
-            </div>
+                // Determine icon by category
+                if (rec.categoria === 'clima') Icon = CloudLightning;
+                else if (rec.categoria === 'nutricao') Icon = Leaf;
+                else if (rec.categoria === 'sanidade') Icon = ShieldAlert;
+                else if (rec.categoria === 'producao') Icon = Egg;
+                else if (rec.categoria === 'geral') Icon = Lightbulb;
 
-            <div className="mt-6 space-y-3">
-              {sortedRecommendations.map((rec) => (
-                <div
-                  key={rec.id}
-                  className={`rounded-2xl border p-4 ${
-                    rec.tipo === 'alerta'
-                      ? rec.prioridade === 'alta'
-                        ? 'border-red-200 bg-red-50'
-                        : 'border-amber-200 bg-amber-50'
-                      : 'border-green-200 bg-green-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {rec.tipo === 'alerta' ? (
-                      <AlertOctagon
-                        className={`h-5 w-5 mt-0.5 ${
-                          rec.prioridade === 'alta' ? 'text-red-600' : 'text-amber-600'
-                        }`}
-                      />
-                    ) : (
-                      <CheckCircle2 className="h-5 w-5 mt-0.5 text-green-600" />
-                    )}
-                    <div>
-                      <h3
-                        className={`text-sm font-extrabold ${
-                          rec.tipo === 'alerta'
-                            ? rec.prioridade === 'alta'
-                              ? 'text-red-700'
-                              : 'text-amber-700'
-                            : 'text-green-700'
-                        }`}
-                      >
-                        {rec.titulo}
-                      </h3>
-                      <p
-                        className={`mt-1 text-sm ${
-                          rec.tipo === 'alerta'
-                            ? rec.prioridade === 'alta'
-                              ? 'text-red-600'
-                              : 'text-amber-600'
-                            : 'text-green-600'
-                        }`}
-                      >
+                return (
+                  <div
+                    key={rec.id}
+                    className={`group flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-start transition-all hover:shadow-md ${bgClass} ${borderClass}`}
+                  >
+                    <div className={`mt-0.5 flex-shrink-0 ${iconColor}`}>
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`font-extrabold ${textClass}`}>{rec.titulo}</h3>
+                        {rec.prioridade === 'alta' && (
+                          <span className="inline-flex animate-pulse items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-700">
+                            Urgente
+                          </span>
+                        )}
+                      </div>
+                      <p className={`mt-1.5 text-sm font-medium leading-relaxed opacity-90 ${textClass}`}>
                         {rec.descricao}
                       </p>
+                      
+                      {rec.knowledgeModuleId && (
+                        <button
+                          onClick={() => {
+                            const module = KNOWLEDGE_MODULES.find(m => m.id === rec.knowledgeModuleId);
+                            if (module) setSelectedKnowledgeModule(module);
+                          }}
+                          className={`mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white/60 px-4 py-2 text-xs font-bold shadow-sm ring-1 ring-black/5 transition-all hover:bg-white hover:shadow ${iconColor}`}
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          Aprender como lidar com isso
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>

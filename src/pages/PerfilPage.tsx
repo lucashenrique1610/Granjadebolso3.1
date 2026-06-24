@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FarmProfileData, THEME_PALETTES, UserPersonalData } from '@/types';
+import { resolveThemePalette } from '@/lib/theme';
 
 type PersonalProfileInput = Omit<UserPersonalData, 'password'>;
 
@@ -261,19 +262,35 @@ export default function PerfilPage({
 
             <label className="space-y-2 md:col-span-2">
               <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Paleta principal</span>
-              <select
-                value={farmDraft.selectedPalette}
-                onChange={(event) =>
-                  setFarmDraft((prev) => ({ ...prev, selectedPalette: event.target.value as FarmProfileData['selectedPalette'] }))
-                }
-                className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none transition-colors focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
-              >
-                {Object.values(THEME_PALETTES).map((palette) => (
-                  <option key={palette.id} value={palette.id}>
-                    {palette.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={farmDraft.selectedPalette}
+                  onChange={(event) =>
+                    setFarmDraft((prev) => ({ ...prev, selectedPalette: event.target.value as FarmProfileData['selectedPalette'] }))
+                  }
+                  className="flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none transition-colors focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
+                >
+                  {Object.values(THEME_PALETTES).map((palette) => (
+                    <option key={palette.id} value={palette.id}>
+                      {palette.name}
+                    </option>
+                  ))}
+                </select>
+                {farmDraft.selectedPalette === 'custom' && (
+                  <div className="relative">
+                    <input
+                      type="color"
+                      value={farmDraft.customPaletteColor || '#6366f1'}
+                      onChange={(e) => {
+                        const color = e.target.value;
+                        setFarmDraft(prev => ({ ...prev, customPaletteColor: color }));
+                      }}
+                      className="h-[46px] w-[46px] rounded-xl border border-gray-300 cursor-pointer p-1"
+                      title="Escolha sua cor personalizada"
+                    />
+                  </div>
+                )}
+              </div>
             </label>
           </div>
 
