@@ -205,29 +205,76 @@ export default function InicioPage({
         {
           label: 'Ovos (un)',
           data: dataOvos,
-          borderColor: 'rgb(250, 189, 0)',
-          backgroundColor: 'rgba(250, 189, 0, 0.2)',
+          borderColor: 'rgb(251, 191, 36)',
+          backgroundColor: (context: any) => {
+            const chart = context.chart;
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return 'rgba(251,191,36,0.15)';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
+            gradient.addColorStop(0.5, 'rgba(251, 191, 36, 0.15)');
+            gradient.addColorStop(1, 'rgba(251, 191, 36, 0.0)');
+            return gradient;
+          },
           fill: true,
-          tension: 0.4,
+          tension: 0.45,
+          borderWidth: 3,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+          pointBackgroundColor: 'rgb(251, 191, 36)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: 'rgb(251, 191, 36)',
+          pointHoverBorderWidth: 3,
           yAxisID: 'y',
         },
         {
           label: 'Ração (kg)',
           data: dataRacao,
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-          fill: false,
-          tension: 0.4,
+          borderColor: 'rgb(99, 179, 237)',
+          backgroundColor: (context: any) => {
+            const chart = context.chart;
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return 'rgba(99,179,237,0.1)';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(99, 179, 237, 0.35)');
+            gradient.addColorStop(1, 'rgba(99, 179, 237, 0.0)');
+            return gradient;
+          },
+          fill: true,
+          tension: 0.45,
+          borderWidth: 2.5,
+          borderDash: [],
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointBackgroundColor: 'rgb(99, 179, 237)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
           yAxisID: 'y',
         },
         {
-          label: 'Mortalidade (aves)',
+          label: 'Mortalidade',
           data: dataMortalidade,
-          borderColor: 'rgb(239, 68, 68)',
-          backgroundColor: 'rgba(239, 68, 68, 0.2)',
-          fill: false,
-          borderDash: [5, 5],
-          tension: 0.4,
+          borderColor: 'rgb(252, 129, 129)',
+          backgroundColor: (context: any) => {
+            const chart = context.chart;
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return 'rgba(252,129,129,0.08)';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(252, 129, 129, 0.25)');
+            gradient.addColorStop(1, 'rgba(252, 129, 129, 0.0)');
+            return gradient;
+          },
+          fill: true,
+          borderDash: [6, 4],
+          tension: 0.45,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointBackgroundColor: 'rgb(252, 129, 129)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
           yAxisID: 'y1',
         },
       ],
@@ -424,70 +471,108 @@ export default function InicioPage({
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-brand-primary" />
-              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Desempenho</h2>
+        {/* Gráfico de Desempenho 3D */}
+        <div className="rounded-2xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 flex flex-col">
+          {/* Header escuro com gradiente */}
+          <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-4 py-4 md:px-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-400/20 flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Desempenho</h2>
+                  <p className="text-xs text-slate-400">Ovos · Ração · Mortalidade</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={performanceLot}
+                  onChange={(e) => setPerformanceLot(e.target.value)}
+                  className="px-2 py-1.5 bg-slate-700/60 border border-slate-600 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-400/50"
+                >
+                  <option value="all">Todos os Lotes</option>
+                  {animals.map(a => <option key={a.id} value={a.id}>{a.tag} ({a.lot})</option>)}
+                </select>
+                <select
+                  value={performancePeriod}
+                  onChange={(e) => setPerformancePeriod(Number(e.target.value) as any)}
+                  className="px-2 py-1.5 bg-slate-700/60 border border-slate-600 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-400/50"
+                >
+                  <option value={7}>7 dias</option>
+                  <option value={15}>15 dias</option>
+                  <option value={30}>30 dias</option>
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <select 
-                value={performanceLot} 
-                onChange={(e) => setPerformanceLot(e.target.value)}
-                className="px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
-              >
-                <option value="all">Todos os Lotes</option>
-                {animals.map(a => <option key={a.id} value={a.id}>{a.tag} ({a.lot})</option>)}
-              </select>
-              <select 
-                value={performancePeriod} 
-                onChange={(e) => setPerformancePeriod(Number(e.target.value) as any)}
-                className="px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
-              >
-                <option value={7}>7 dias</option>
-                <option value={15}>15 dias</option>
-                <option value={30}>30 dias</option>
-              </select>
+            {/* Mini legenda colorida */}
+            <div className="flex items-center gap-4 mt-3">
+              <span className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                <span className="w-3 h-1.5 rounded-full bg-amber-400 inline-block" />Ovos
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                <span className="w-3 h-1.5 rounded-full bg-sky-400 inline-block" />Ração
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                <span className="w-4 h-px border-t-2 border-dashed border-red-400 inline-block" />Mort.
+              </span>
             </div>
           </div>
-          <div className="h-52 md:h-64 flex-1">
-            <Line
-              data={performanceChartData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
-                  tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    padding: 10,
-                    cornerRadius: 8,
-                    mode: 'index',
-                    intersect: false,
+          {/* Área do gráfico */}
+          <div className="bg-slate-900/95 p-4 flex-1">
+            <div className="h-52 md:h-64">
+              <Line
+                data={performanceChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      backgroundColor: 'rgba(2, 8, 23, 0.95)',
+                      titleColor: '#f1f5f9',
+                      bodyColor: '#cbd5e1',
+                      borderColor: 'rgba(148,163,184,0.15)',
+                      borderWidth: 1,
+                      padding: 12,
+                      cornerRadius: 12,
+                      displayColors: true,
+                      boxWidth: 8,
+                      boxHeight: 8,
+                      callbacks: {
+                        title: (items) => `📅 ${items[0]?.label}`,
+                      }
+                    },
                   },
-                },
-                scales: {
-                  y: { 
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    beginAtZero: true, 
-                    grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                  scales: {
+                    y: {
+                      type: 'linear',
+                      display: true,
+                      position: 'left',
+                      beginAtZero: true,
+                      grid: { color: 'rgba(148, 163, 184, 0.08)' },
+                      ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 5 },
+                      border: { display: false },
+                    },
+                    y1: {
+                      type: 'linear',
+                      display: true,
+                      position: 'right',
+                      beginAtZero: true,
+                      grid: { drawOnChartArea: false },
+                      ticks: { color: '#ef4444', font: { size: 10 }, precision: 0, maxTicksLimit: 4 },
+                      border: { display: false },
+                    },
+                    x: {
+                      grid: { display: false },
+                      ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0 },
+                      border: { display: false },
+                    },
                   },
-                  y1: { 
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    beginAtZero: true, 
-                    grid: { drawOnChartArea: false },
-                    ticks: { precision: 0 }
-                  },
-                  x: { grid: { display: false } },
-                },
-              }}
-            />
+                }}
+              />
+            </div>
           </div>
         </div>
 
