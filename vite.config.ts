@@ -11,6 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        useCredentials: true,
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png', 'hero_background.png'],
         manifest: {
           name: 'Granja de Bolso',
