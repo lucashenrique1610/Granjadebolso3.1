@@ -300,12 +300,12 @@ export default function InicioPage({
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 pb-24 md:pb-6 animate-in fade-in zoom-in-95 duration-300">
+    <div className="px-4 py-4 md:px-6 md:py-6 max-w-7xl mx-auto space-y-4 md:space-y-6 pb-28 md:pb-6 animate-fade-in-up">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <TimeIcon className="w-6 h-6 text-brand-primary" />
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{greeting}!</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">{greeting}!</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Bem-vindo(a) ao seu painel de controle da granja.</p>
         </div>
@@ -362,84 +362,69 @@ export default function InicioPage({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         {/* Weather Widget */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-800 p-5 rounded-2xl border border-blue-400 dark:border-blue-700 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow text-white">
-          <div className="flex items-center justify-between">
-            <span className="text-blue-100 text-sm font-medium">{weatherData ? weatherData.location : 'Carregando clima...'}</span>
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white">
-              <CloudSun className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold">
+        <div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl shadow-sm flex flex-row lg:flex-col justify-between items-center lg:items-start text-white">
+          <div>
+            <span className="text-blue-100 text-xs font-semibold block truncate max-w-[120px] lg:max-w-none">{weatherData ? weatherData.location : 'Carregando...'}</span>
+            <span className="text-2xl md:text-3xl font-bold block mt-1">
               {weatherData ? `${Math.round(weatherData.temperature)}°C` : '--°C'}
             </span>
-            <div className="flex items-center gap-2 mt-1 text-sm text-blue-100">
-              <span className="flex items-center"><Thermometer className="w-3 h-3 mr-1" /> {weatherData ? `${Math.round(weatherData.temperatureMin)}°` : '--'}</span>
-              <span>/</span>
-              <span className="flex items-center">{weatherData ? `${Math.round(weatherData.temperatureMax)}°` : '--'}</span>
+            <div className="flex items-center gap-1 mt-0.5 text-xs text-blue-100">
+              <Thermometer className="w-3 h-3" />
+              <span>{weatherData ? `${Math.round(weatherData.temperatureMin)}° / ${Math.round(weatherData.temperatureMax)}°` : '-- / --'}</span>
             </div>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+            <CloudSun className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="kpi-card">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Aves Ativas</span>
-            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-              <Bird className="w-5 h-5" />
+            <span className="kpi-label">Aves</span>
+            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+              <Bird className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">{numberFormatter.format(totalBirds)}</span>
-            <div className="flex items-center mt-1 text-sm text-slate-500">
-              Mortalidade: {mortalityRate.toFixed(2)}%
-            </div>
-          </div>
+          <span className="kpi-value">{numberFormatter.format(totalBirds)}</span>
+          <span className="kpi-sub">Mort.: {mortalityRate.toFixed(1)}%</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="kpi-card">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Receitas (30d)</span>
-            <div className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
-              <TrendingUp className="w-5 h-5" />
+            <span className="kpi-label">Receitas 30d</span>
+            <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">{currencyFormatter.format(revenue30d)}</span>
-          </div>
+          <span className="kpi-value text-green-600">{currencyFormatter.format(revenue30d)}</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="kpi-card">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Despesas (30d)</span>
-            <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
-              <TrendingDown className="w-5 h-5" />
+            <span className="kpi-label">Despesas 30d</span>
+            <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+              <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">{currencyFormatter.format(expenses30d)}</span>
-          </div>
+          <span className="kpi-value text-red-600">{currencyFormatter.format(expenses30d)}</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="kpi-card">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Saldo (30d)</span>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${balance >= 0 ? 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
-              <DollarSign className="w-5 h-5" />
+            <span className="kpi-label">Saldo 30d</span>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${balance >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className={`text-3xl font-bold ${balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              {currencyFormatter.format(balance)}
-            </span>
-          </div>
+          <span className={`kpi-value ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{currencyFormatter.format(balance)}</span>
         </div>
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-brand-primary" />
@@ -465,7 +450,7 @@ export default function InicioPage({
               </select>
             </div>
           </div>
-          <div className="h-64 flex-1">
+          <div className="h-52 md:h-64 flex-1">
             <Line
               data={performanceChartData}
               options={{
@@ -506,12 +491,12 @@ export default function InicioPage({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-2 mb-6">
             <Wallet className="w-5 h-5 text-brand-primary" />
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Financeiro (Últimos 6 meses)</h2>
           </div>
-          <div className="h-64">
+          <div className="h-52 md:h-64">
             <Bar
               data={financialChartData}
               options={{
@@ -539,7 +524,7 @@ export default function InicioPage({
       {/* Bottom Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Zootechnical Metrics & Shortcuts */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm col-span-1 lg:col-span-2">
+        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm col-span-1 lg:col-span-2">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <PieChart className="w-5 h-5 text-brand-primary" />
             Indicadores Zootécnicos
@@ -568,51 +553,51 @@ export default function InicioPage({
           </div>
 
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Acesso Rápido</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             <button
               onClick={() => onNavigate('manejo')}
-              className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl bg-slate-50 hover:bg-brand-bg border border-slate-100 hover:border-brand-primary/30 dark:bg-slate-900/50 dark:border-slate-800 dark:hover:border-brand-primary/50 transition-all group"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-slate-50 active:scale-95 border border-slate-100 transition-all group min-h-[88px]"
             >
-              <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
-                <ClipboardList className="w-6 h-6" />
+              <div className="w-11 h-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                <ClipboardList className="w-5 h-5" />
               </div>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Registrar Manejo</span>
+              <span className="text-sm font-semibold text-slate-700">Manejo</span>
             </button>
 
             <button
               onClick={() => onNavigate('vendas')}
-              className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl bg-slate-50 hover:bg-brand-bg border border-slate-100 hover:border-brand-primary/30 dark:bg-slate-900/50 dark:border-slate-800 dark:hover:border-brand-primary/50 transition-all group"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-slate-50 active:scale-95 border border-slate-100 transition-all group min-h-[88px]"
             >
-              <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
-                <ShoppingBag className="w-6 h-6" />
+              <div className="w-11 h-11 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                <ShoppingBag className="w-5 h-5" />
               </div>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Nova Venda</span>
+              <span className="text-sm font-semibold text-slate-700">Vendas</span>
             </button>
 
             <button
               onClick={() => onNavigate('compras')}
-              className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl bg-slate-50 hover:bg-brand-bg border border-slate-100 hover:border-brand-primary/30 dark:bg-slate-900/50 dark:border-slate-800 dark:hover:border-brand-primary/50 transition-all group"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-slate-50 active:scale-95 border border-slate-100 transition-all group min-h-[88px]"
             >
-              <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
-                <Wallet className="w-6 h-6" />
+              <div className="w-11 h-11 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+                <Wallet className="w-5 h-5" />
               </div>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Nova Compra</span>
+              <span className="text-sm font-semibold text-slate-700">Compras</span>
             </button>
 
             <button
               onClick={() => onNavigate('animais')}
-              className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl bg-slate-50 hover:bg-brand-bg border border-slate-100 hover:border-brand-primary/30 dark:bg-slate-900/50 dark:border-slate-800 dark:hover:border-brand-primary/50 transition-all group"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-slate-50 active:scale-95 border border-slate-100 transition-all group min-h-[88px]"
             >
-              <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
-                <Bird className="w-6 h-6" />
+              <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                <Bird className="w-5 h-5" />
               </div>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Lotes de Aves</span>
+              <span className="text-sm font-semibold text-slate-700">Lotes</span>
             </button>
           </div>
         </div>
 
         {/* Recent Activities */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm col-span-1">
+        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm col-span-1">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <History className="w-5 h-5 text-brand-primary" />
             Atividades Recentes
