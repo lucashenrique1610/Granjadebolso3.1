@@ -1,49 +1,82 @@
 import React, { useEffect, useState } from 'react';
-import { Download, X, Smartphone } from 'lucide-react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import { Download, X, Smartphone, Share } from 'lucide-react';
 
 const INSTALL_DISMISSED_KEY = 'granjadebolso_install_dismissed';
 
+// Detecta iOS (Safari não suporta beforeinstallprompt)
+function isIOS() {
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPad no iOS 13+ se identifica como Mac
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+// Detecta se já está rodando como PWA instalado
+function isStandalone() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true
+  );
+}
+
+// Verifica se o banner foi descartado recentemente
+function wasDismissedRecently(): boolean {
+  const val = localStorage.getItem(INSTALL_DISMISSED_KEY);
+  if (!val) return false;
+  if (val === 'permanent') return true;
+  const expires = Number(val);
+  return !isNaN(expires) && Date.now() < expires;
+}
+
 export default function PWAInstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
+  const [mode, setMode] = useState<'prompt' | 'ios' | null>(null);
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
-    // Não mostrar se já foi instalado ou descartado permanentemente
-    const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
-    if (dismissed === 'permanent') return;
+    // Não mostrar se já está instalado ou foi descartado
+    if (isStandalone() || wasDismissedRecently()) return;
 
-    // Não mostrar se já está rodando como PWA instalado
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
-    if (isStandalone) return;
+    // --- iOS: mostrar instruções manuais ---
+    if (isIOS()) {
+      const timer = setTimeout(() => {
+        setMode('ios');
+        setVisible(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Pequeno delay para não aparecer imediatamente na abertura
-      setTimeout(() => setVisible(true), 2500);
+    // --- Android/Chrome/Edge: usar beforeinstallprompt ---
+
+    // Já capturado antes do React montar?
+    if ((window as any).__pwaInstallPrompt) {
+      const timer = setTimeout(() => {
+        setMode('prompt');
+        setVisible(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+
+    // Escuta o evento customizado emitido pelo main.tsx
+    const onReady = () => {
+      setMode('prompt');
+      setVisible(true);
     };
-
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('pwaInstallReady', onReady);
+    return () => window.removeEventListener('pwaInstallReady', onReady);
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
+    const prompt = (window as any).__pwaInstallPrompt;
+    if (!prompt) return;
     setInstalling(true);
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     if (outcome === 'accepted') {
       localStorage.setItem(INSTALL_DISMISSED_KEY, 'permanent');
     }
-    setDeferredPrompt(null);
+    (window as any).__pwaInstallPrompt = null;
     setVisible(false);
     setInstalling(false);
   };
@@ -55,25 +88,25 @@ export default function PWAInstallBanner() {
     localStorage.setItem(INSTALL_DISMISSED_KEY, String(expires));
   };
 
-  if (!visible) return null;
+  if (!visible || !mode) return null;
 
   return (
     <div
       id="pwa-install-banner"
       style={{
         position: 'fixed',
-        bottom: '80px',
+        bottom: '88px',
         left: '50%',
         transform: 'translateX(-50%)',
         width: 'calc(100% - 2rem)',
-        maxWidth: '420px',
+        maxWidth: '430px',
         zIndex: 9999,
         animation: 'slideUpBanner 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
       }}
     >
       <style>{`
         @keyframes slideUpBanner {
-          from { opacity: 0; transform: translateX(-50%) translateY(24px); }
+          from { opacity: 0; transform: translateX(-50%) translateY(28px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
@@ -82,11 +115,11 @@ export default function PWAInstallBanner() {
         style={{
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
           borderRadius: '1.25rem',
-          padding: '1rem 1.25rem',
+          padding: '1rem 1.125rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.875rem',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.07)',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.07)',
         }}
       >
         {/* Ícone */}
@@ -100,7 +133,7 @@ export default function PWAInstallBanner() {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 4px 12px rgba(0,93,166,0.4)',
+            boxShadow: '0 4px 16px rgba(0,93,166,0.5)',
           }}
         >
           <Smartphone size={24} color="#fff" />
@@ -111,35 +144,44 @@ export default function PWAInstallBanner() {
           <p style={{ margin: 0, color: '#f1f5f9', fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.3 }}>
             Instalar Granja de Bolso
           </p>
-          <p style={{ margin: '0.2rem 0 0', color: '#94a3b8', fontSize: '0.75rem', lineHeight: 1.4 }}>
-            Acesse mais rápido, offline e sem navegador
-          </p>
+          {mode === 'ios' ? (
+            <p style={{ margin: '0.25rem 0 0', color: '#94a3b8', fontSize: '0.72rem', lineHeight: 1.5 }}>
+              Toque em <Share size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> <strong style={{ color: '#cbd5e1' }}>Compartilhar</strong> → <strong style={{ color: '#cbd5e1' }}>Adicionar à Tela Inicial</strong>
+            </p>
+          ) : (
+            <p style={{ margin: '0.2rem 0 0', color: '#94a3b8', fontSize: '0.75rem', lineHeight: 1.4 }}>
+              Acesse mais rápido, offline e sem navegador
+            </p>
+          )}
         </div>
 
-        {/* Botão instalar */}
-        <button
-          onClick={handleInstall}
-          disabled={installing}
-          style={{
-            background: 'var(--brand-primary, #005da6)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.625rem',
-            padding: '0.5rem 0.875rem',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            opacity: installing ? 0.7 : 1,
-            transition: 'opacity 0.15s',
-          }}
-        >
-          <Download size={14} />
-          {installing ? 'Instalando…' : 'Instalar'}
-        </button>
+        {/* Botão instalar (apenas para Android/Chrome) */}
+        {mode === 'prompt' && (
+          <button
+            onClick={handleInstall}
+            disabled={installing}
+            style={{
+              background: 'var(--brand-primary, #005da6)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '0.625rem',
+              padding: '0.5rem 0.875rem',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              opacity: installing ? 0.7 : 1,
+              transition: 'opacity 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Download size={14} />
+            {installing ? 'Instalando…' : 'Instalar'}
+          </button>
+        )}
 
         {/* Fechar */}
         <button
