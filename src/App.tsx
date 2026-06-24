@@ -13,6 +13,8 @@ import StepColorCustomize from '@/components/StepColorCustomize';
 import StepFarmConfig from '@/components/StepFarmConfig';
 import StepFinalization from '@/components/StepFinalization';
 import StepPersonalData from '@/components/StepPersonalData';
+import PWAInstallBanner from '@/components/PWAInstallBanner';
+import PWAUpdateBanner from '@/components/PWAUpdateBanner';
 import {
   createMyGranja,
   getMyLatestGranja,
@@ -611,6 +613,10 @@ export default function App() {
           onPreviewSystemPaletteChange={handleSystemPalettePreview}
         />
       )}
+
+      {/* PWA Banners — visíveis em todas as telas */}
+      <PWAUpdateBanner />
+      <PWAInstallBanner />
     </div>
   );
 }
