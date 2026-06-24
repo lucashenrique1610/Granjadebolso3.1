@@ -529,10 +529,9 @@ export default function Sidebar({
   // Bottom mobile nav
   // -------------------------------------------------------------------------
   const bottomNavGroups: Array<{ id: RouteId; label: string; icon: React.ReactNode; routes: RouteId[] }> = [
-    { id: 'inicio', label: 'Início', icon: <Home className="w-5 h-5" />, routes: ['inicio'] },
-    { id: 'manejo', label: 'Operações', icon: <ClipboardList className="w-5 h-5" />, routes: ['manejo', 'vendas', 'formulacao'] },
-    { id: 'animais', label: 'Cadastro', icon: <Bird className="w-5 h-5" />, routes: ['animais', 'cliente', 'fornecedor', 'galpoes', 'profissionais'] },
-    { id: 'financeiro', label: 'Gestão', icon: <Wallet className="w-5 h-5" />, routes: ['compras', 'financeiro', 'investimentos', 'relatorios'] },
+    { id: 'inicio', label: 'Início', icon: <Home className="w-6 h-6" />, routes: ['inicio'] },
+    { id: 'manejo', label: 'Manejo', icon: <ClipboardList className="w-6 h-6" />, routes: ['manejo', 'formulacao'] },
+    { id: 'vendas', label: 'Vendas', icon: <ShoppingBag className="w-6 h-6" />, routes: ['vendas', 'disponibilidade'] },
   ];
 
   const isMoreActive = ['clima', 'conhecimento', 'perfil', 'sistema', 'backups', 'assinatura'].includes(activeRoute);
@@ -591,9 +590,9 @@ export default function Sidebar({
           isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200',
         ].join(' ')}
         aria-label="Navegação inferior"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.25rem)' }}
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
       >
-        <div className="grid grid-cols-5 gap-1 px-2 pt-2 pb-1">
+        <div className="grid grid-cols-4 gap-1 px-2 pt-2 pb-1 relative">
           {bottomNavGroups.map((grp) => {
             const isActive = grp.routes.includes(activeRoute);
             return (
@@ -602,21 +601,35 @@ export default function Sidebar({
                 type="button"
                 onClick={() => handleNavigate(grp.id)}
                 className={[
-                  'flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-bold transition-all duration-200 cursor-pointer',
+                  'relative flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-bold transition-all duration-300 cursor-pointer min-h-[56px] overflow-hidden group',
                   isActive
                     ? isDarkMode
-                      ? 'bg-slate-800'
-                      : 'bg-brand-bg'
+                      ? 'text-brand-primary'
+                      : 'text-brand-primary'
                     : isDarkMode
-                    ? 'text-slate-400 hover:bg-slate-800/70'
-                    : 'text-slate-500 hover:bg-slate-100',
+                    ? 'text-slate-400 hover:bg-slate-800/50'
+                    : 'text-slate-500 hover:bg-slate-50',
                 ].join(' ')}
                 style={isActive ? { color: 'var(--brand-primary)' } : undefined}
                 aria-current={isActive ? 'page' : undefined}
                 aria-label={grp.label}
               >
-                {grp.icon}
-                <span className="truncate w-full text-center leading-tight">{grp.label}</span>
+                {/* Background Bubble Animado */}
+                <div 
+                  className={`absolute inset-0 transition-transform duration-300 rounded-2xl ${isActive ? 'scale-100 opacity-100' : 'scale-50 opacity-0'} ${isDarkMode ? 'bg-brand-primary/10' : 'bg-brand-primary/10'}`}
+                />
+                
+                {/* Icone com animação de pulo */}
+                <div className={`relative transition-transform duration-300 ${isActive ? '-translate-y-1 scale-110' : 'group-active:scale-95'}`}>
+                  {grp.icon}
+                </div>
+                
+                {/* Label que sobe suavemente */}
+                <span 
+                  className={`absolute bottom-1.5 w-full text-center leading-tight transition-all duration-300 ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
+                >
+                  {grp.label}
+                </span>
               </button>
             );
           })}
@@ -626,20 +639,31 @@ export default function Sidebar({
             type="button"
             onClick={onRequestOpenMobile}
             className={[
-              'flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-bold transition-all duration-200 cursor-pointer',
+              'relative flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-bold transition-all duration-300 cursor-pointer min-h-[56px] overflow-hidden group',
               isMoreActive
                 ? isDarkMode
-                  ? 'bg-slate-800'
-                  : 'bg-brand-bg'
+                  ? 'text-brand-primary'
+                  : 'text-brand-primary'
                 : isDarkMode
-                ? 'text-slate-400 hover:bg-slate-800/70'
-                : 'text-slate-500 hover:bg-slate-100',
+                ? 'text-slate-400 hover:bg-slate-800/50'
+                : 'text-slate-500 hover:bg-slate-50',
             ].join(' ')}
             style={isMoreActive ? { color: 'var(--brand-primary)' } : undefined}
             aria-label="Mais opções"
           >
-            <Menu className="w-5 h-5" />
-            <span className="truncate">Mais</span>
+            <div 
+              className={`absolute inset-0 transition-transform duration-300 rounded-2xl ${isMoreActive ? 'scale-100 opacity-100' : 'scale-50 opacity-0'} ${isDarkMode ? 'bg-brand-primary/10' : 'bg-brand-primary/10'}`}
+            />
+            
+            <div className={`relative transition-transform duration-300 ${isMoreActive ? '-translate-y-1 scale-110' : 'group-active:scale-95'}`}>
+              <Menu className="w-6 h-6" />
+            </div>
+            
+            <span 
+              className={`absolute bottom-1.5 w-full text-center leading-tight transition-all duration-300 ${isMoreActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
+            >
+              Mais
+            </span>
           </button>
         </div>
       </nav>

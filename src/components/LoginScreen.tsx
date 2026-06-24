@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Mail, Lock, ArrowRight, Wheat, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Wheat, Eye, EyeOff, AlertCircle, LineChart, ShieldCheck, Beaker, Sprout, CheckCircle2 } from 'lucide-react';
 import { signInWithEmail, isSupabaseConfigured, supabaseConfigIssue } from '@/lib/supabase';
 
 interface LoginScreenProps {
@@ -32,11 +32,7 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
     setAuthError('');
 
     if (!isSupabaseConfigured) {
-      if (supabaseConfigIssue === 'service_role') {
-        setAuthError('Chave do Supabase inválida: você colou uma service_role key. Use a anon public key (Settings → API → anon public).');
-        return;
-      }
-      setAuthError('Supabase não está configurado. Crie ou preencha o arquivo .env na raiz do projeto com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY e reinicie o npm run dev.');
+      setAuthError('Falha ao conectar com o servidor. Por favor, verifique sua conexão ou tente novamente mais tarde.');
       return;
     }
 
@@ -65,46 +61,78 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
   return (
     <div className="bg-brand-main text-on-surface min-h-screen flex items-center justify-center font-sans antialiased selection:bg-brand-primary selection:text-white">
       <div className="w-full min-h-screen flex flex-col md:flex-row">
-        {/* Left Side: Hero Image (Hidden on Mobile) */}
-        <div className="hidden md:block md:w-1/2 lg:w-7/12 relative bg-slate-300 overflow-hidden">
+        {/* Left Side: Hero Image and Advantages (Hidden on Mobile) */}
+        <div className="hidden md:flex md:w-1/2 lg:w-7/12 relative bg-[#0f1c2b] overflow-hidden flex-col justify-between p-12">
+          {/* Background Image with Overlay */}
           <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuAF7jRK9z6qOzu0Nw0aOijEjcMPQZ64-Id9iX8IhJqUc-Xp9BJM7gwufHI49lwEvMVUq0Ry2qJjEzYw7hNBrHh3Lhe83UKOsx2DefmWHoeiyhimt-wgwqMEFhXy3fwYQyWIAYAjyOJNaLfHdtBvHVEY1WQGO_PQH_u0kWNxMRBVVsZ_Pe-9t9iw8lk5iS6su0p3nOqOZIG2mH6kvvudVyr1EhpdbvnrY8Hw9ufktoDPAzV5cKU3VlbpsuRLNNOZcyV_ZeGnqNbWQ3g')`,
-            }}
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 hover:scale-105"
+            style={{ backgroundImage: `url('/hero_background.png')` }}
           />
-          {/* Tonal overlay for unified brand look */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-brand-primary/80 to-transparent mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0f1c2b]/95 via-[#0f1c2b]/50 to-transparent" />
           
-          {/* Aesthetic Overlay Content */}
-          <div className="absolute bottom-10 left-10 right-10 text-white relative z-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Wheat className="w-8 h-8 text-white" />
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight">Sistema Integrado</h2>
+          {/* Top Brand Logo */}
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
+              <Wheat className="w-6 h-6 text-brand-primary" />
             </div>
-            <p className="text-sm md:text-sm max-w-sm opacity-90 leading-relaxed font-medium">
-              Gestão de precisão e controle logístico para operações de alta performance.
+            <div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">Granja de Bolso</h2>
+              <p className="text-xs text-brand-primary uppercase tracking-widest font-bold">Ecossistema Avícola</p>
+            </div>
+          </div>
+
+          {/* Center Advantages */}
+          <div className="relative z-10 my-auto py-6">
+            <h3 className="text-2xl lg:text-3xl font-extrabold text-white mb-3 leading-tight">
+              A gestão da sua granja <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-[#80c0ff]">elevada a outro nível.</span>
+            </h3>
+            <p className="text-slate-300 text-xs lg:text-sm font-medium mb-6 max-w-lg leading-relaxed">
+              Assuma o controle total da sua produção caipira. Da formulação inteligente de ração até a venda final, simplificamos o complexo para você focar no que importa: resultados.
             </p>
+
+            <div className="grid gap-3">
+              {[
+                { icon: LineChart, title: "Zootecnia & Rentabilidade", desc: "Acompanhe mortalidade, postura, peso e margem de lucro por lote." },
+                { icon: Beaker, title: "Formulação Precisa", desc: "Cálculo automático de nutrientes para reduzir custos com ração." },
+                { icon: ShieldCheck, title: "Sanidade & Bem-estar", desc: "Controle de vacinas, protocolos e alertas sanitários em dia." },
+                { icon: Sprout, title: "Manejo Inteligente", desc: "Gestão de galpões, piquetes, iluminação e ambiência da granja." },
+              ].map((adv, idx) => (
+                <div key={idx} className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-colors">
+                  <div className="mt-1 p-2 bg-brand-primary/20 rounded-lg text-brand-primary">
+                    <adv.icon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold text-sm mb-1">{adv.title}</h4>
+                    <p className="text-slate-400 text-xs leading-relaxed">{adv.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer Info */}
+          <div className="relative z-10 flex items-center justify-between text-xs font-semibold text-slate-400 border-t border-white/10 pt-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <span>Feito por quem entende: criado de avicultor para avicultor.</span>
+            </div>
+            <span>v3.1.0</span>
           </div>
         </div>
 
         {/* Right Side: Form Canvas */}
-        <div className="w-full md:w-1/2 lg:w-5/12 flex items-center justify-center p-6 md:p-12 bg-white">
-          <div className="w-full max-w-sm flex flex-col gap-6">
+        <div className="w-full md:w-1/2 lg:w-5/12 flex items-center justify-center p-6 md:p-8 bg-white h-screen overflow-y-auto">
+          <div className="w-full max-w-sm flex flex-col gap-5 my-auto">
             
             {/* Header / Logo Area */}
-            <div className="flex flex-col items-center md:items-start mb-2">
-              <div className="flex items-center gap-2 text-brand-primary mb-1">
-                <img
-                  src="/logo.png"
-                  alt="Logo Granja de Bolso"
-                  className="w-12 h-12 object-contain"
-                />
-                <h1 className="text-xl md:text-2xl text-brand-primary font-bold tracking-tight">
-                  Granja de Bolso
-                </h1>
-              </div>
-              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider text-center md:text-left">
+            <div className="flex flex-col items-center mb-6">
+              <img
+                src="/logo.png"
+                alt="Logo Granja de Bolso"
+                className="w-36 h-36 md:w-44 md:h-44 object-contain drop-shadow-sm mb-2"
+              />
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider text-center">
                 Acesse sua conta para continuar
               </p>
             </div>
@@ -132,7 +160,7 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nome@empresa.com"
-                    className="w-full bg-slate-50 border border-gray-300 text-sm text-[#0f1c2b] py-3 pl-12 pr-4 focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-colors rounded-full"
+                    className="w-full bg-slate-50 border border-gray-300 text-sm text-[#0f1c2b] py-2.5 pl-12 pr-4 focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-colors rounded-full"
                   />
                 </div>
               </div>
@@ -151,7 +179,7 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-gray-300 text-sm text-[#0f1c2b] py-3 pl-12 pr-12 focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-colors rounded-full"
+                    className="w-full bg-slate-50 border border-gray-300 text-sm text-[#0f1c2b] py-2.5 pl-12 pr-12 focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-colors rounded-full"
                   />
                   <button
                     type="button"

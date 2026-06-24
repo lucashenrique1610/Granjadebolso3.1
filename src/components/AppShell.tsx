@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
 import { LogOut, Moon, Sun } from 'lucide-react';
 import {
   AnimalRecord,
@@ -26,26 +26,27 @@ import {
   FormulatedFeedStockRecord,
 } from '@/types';
 import Sidebar, { RouteId } from '@/components/Sidebar';
-import AnimaisPage from '@/pages/AnimaisPage';
-import AssinaturaPage from '@/pages/AssinaturaPage';
-import BackupsPage from '@/pages/BackupsPage';
-import ClientePage from '@/pages/ClientePage';
-import ClimaPage from '@/pages/ClimaPage';
-import ComprasPage from '@/pages/ComprasPage';
-import ConhecimentoPage from '@/pages/ConhecimentoPage';
-import FinanceiroPage from '@/pages/FinanceiroPage';
-import FormulacaoPage from '@/pages/FormulacaoPage';
-import FornecedorPage from '@/pages/FornecedorPage';
-import GalpoesPage from '@/pages/GalpoesPage';
-import ProfissionaisPage from '@/pages/ProfissionaisPage';
-import InicioPage from '@/pages/InicioPage';
-import InvestimentosPage from '@/pages/InvestimentosPage';
-import ManejoPage from '@/pages/ManejoPage';
-import PerfilPage from '@/pages/PerfilPage';
-import PersonalizacaoPage from '@/pages/PersonalizacaoPage';
-import RelatoriosPage from '@/pages/RelatoriosPage';
-import SistemaPage from '@/pages/SistemaPage';
-import VendasPage from '@/pages/VendasPage';
+
+const AnimaisPage = lazy(() => import('@/pages/AnimaisPage'));
+const AssinaturaPage = lazy(() => import('@/pages/AssinaturaPage'));
+const BackupsPage = lazy(() => import('@/pages/BackupsPage'));
+const ClientePage = lazy(() => import('@/pages/ClientePage'));
+const ClimaPage = lazy(() => import('@/pages/ClimaPage'));
+const ComprasPage = lazy(() => import('@/pages/ComprasPage'));
+const ConhecimentoPage = lazy(() => import('@/pages/ConhecimentoPage'));
+const FinanceiroPage = lazy(() => import('@/pages/FinanceiroPage'));
+const FormulacaoPage = lazy(() => import('@/pages/FormulacaoPage'));
+const FornecedorPage = lazy(() => import('@/pages/FornecedorPage'));
+const GalpoesPage = lazy(() => import('@/pages/GalpoesPage'));
+const ProfissionaisPage = lazy(() => import('@/pages/ProfissionaisPage'));
+const InicioPage = lazy(() => import('@/pages/InicioPage'));
+const InvestimentosPage = lazy(() => import('@/pages/InvestimentosPage'));
+const ManejoPage = lazy(() => import('@/pages/ManejoPage'));
+const PerfilPage = lazy(() => import('@/pages/PerfilPage'));
+const PersonalizacaoPage = lazy(() => import('@/pages/PersonalizacaoPage'));
+const RelatoriosPage = lazy(() => import('@/pages/RelatoriosPage'));
+const SistemaPage = lazy(() => import('@/pages/SistemaPage'));
+const VendasPage = lazy(() => import('@/pages/VendasPage'));
 import {
   buildMyBackupSnapshot,
   createMyGranja,
@@ -145,6 +146,7 @@ export default function AppShell({
   onPreviewSystemPaletteChange,
 }: AppShellProps) {
   const [activeRoute, setActiveRoute] = useState<RouteId>('inicio');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   // Persist sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -177,6 +179,26 @@ export default function AppShell({
   const [backupsError, setBackupsError] = useState<string | null>(null);
   const [backupAutomation, setBackupAutomation] = useState<BackupAutomationSettings>(DEFAULT_BACKUP_AUTOMATION);
   const autoBackupRunRef = useRef(false);
+
+  // PWA Install Prompt
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('App instalado com sucesso!');
+    }
+    setDeferredPrompt(null);
+  };
 
   // Save sidebar collapsed state to localStorage
   useEffect(() => {
@@ -211,6 +233,7 @@ export default function AppShell({
           listMyFormulacoes(),
           listMyFormulatedFeedStock(),
         ]);
+        
       setAnimalRecords(animals);
       setClientRecords(clients);
       setSupplierRecords(suppliers);
@@ -226,9 +249,43 @@ export default function AppShell({
       setIngredientRecords(ingredients);
       setFormulationRecords(formulations);
       setFormulatedFeedStockRecords(formulatedFeedStock);
+
+      // Save to IndexedDB cache
+      import('@/lib/offlineStore').then(({ saveToCache }) => {
+        saveToCache('app_cadastros', {
+          animals, clients, suppliers, purchases, galpoes, professionals, health, stock, mortality, manejo, disponibilidade, vendas, ingredients, formulations, formulatedFeedStock
+        });
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao carregar cadastros do Supabase.';
-      setCadastrosError(message);
+      console.warn('Network error loading data, falling back to offline cache...', error);
+      try {
+        const { loadFromCache } = await import('@/lib/offlineStore');
+        const cached = await loadFromCache('app_cadastros');
+        if (cached) {
+          setAnimalRecords(cached.animals || []);
+          setClientRecords(cached.clients || []);
+          setSupplierRecords(cached.suppliers || []);
+          setPurchaseRecords(cached.purchases || []);
+          setGalpaoRecords(cached.galpoes || []);
+          setHealthProfessionalRecords(cached.professionals || []);
+          setHealthRecords(cached.health || []);
+          setVeterinaryStockRecords(cached.stock || []);
+          setMortalityRecords(cached.mortality || []);
+          setManejoRecords(cached.manejo || []);
+          setDisponibilidadeVenda(cached.disponibilidade || []);
+          setVendasRecords(cached.vendas || []);
+          setIngredientRecords(cached.ingredients || []);
+          setFormulationRecords(cached.formulations || []);
+          setFormulatedFeedStockRecords(cached.formulatedFeedStock || []);
+          // Don't set error message to keep the app usable silently in offline mode
+          // But maybe a small warning banner would be nice (can be added later)
+        } else {
+          throw new Error('Sem cache local disponível.');
+        }
+      } catch (cacheError) {
+        const message = error instanceof Error ? error.message : 'Erro ao carregar cadastros do Supabase e sem cache local.';
+        setCadastrosError(message);
+      }
     } finally {
       setIsCadastrosLoading(false);
     }
@@ -262,58 +319,95 @@ export default function AppShell({
     void loadBackups();
   }, []);
 
-  const refreshAppStateFromSupabase = async () => {
-    const [user, granja] = await Promise.all([getMyUser(), getMyLatestGranja()]);
+  // Background Sync Processor
+  useEffect(() => {
+    let syncInterval: ReturnType<typeof setInterval>;
 
-    if (user) {
-      onUpdatePersonalProfile({
-        fullName: user.full_name,
-        email: user.email,
-        phone: user.phone ?? '',
-      });
+    const handleOnline = () => {
+      console.log('App is online. Processing sync queue...');
+      import('@/lib/syncProcessor').then(({ processSyncQueue }) => processSyncQueue());
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    // Initial check and periodic polling every 30 seconds
+    if (navigator.onLine) {
+      handleOnline();
     }
+    syncInterval = setInterval(() => {
+      if (navigator.onLine) {
+        import('@/lib/syncProcessor').then(({ processSyncQueue }) => processSyncQueue());
+      }
+    }, 30000);
 
-    if (granja) {
-      const selectedPalette =
-        granja.selected_palette ? (granja.selected_palette as SystemSettingsData['selectedPalette']) : 'blue';
-      setBackupAutomation(getBackupAutomationSettingsFromGranja(granja));
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      clearInterval(syncInterval);
+    };
+  }, []);
 
-      onUpdateFarmProfile({
-        farmName: granja.farm_name,
-        state: granja.state,
-        city: granja.city,
-        birdCount: granja.bird_count,
-        selectedPalette,
-        marketingSource: granja.marketing_source ?? '',
-      });
-
-      onUpdateSystemSettings({
-        selectedPalette,
-        fontFamily: appState.systemSettings.fontFamily || 'inter',
-        borderRadius: appState.systemSettings.borderRadius || 'rounded',
-        eggSalePrice: Number(granja.egg_sale_price ?? 0),
-        birdSalePrice: Number(granja.bird_sale_price ?? 0),
-        litterSalePrice: Number(granja.litter_sale_price ?? 0),
-        weather: {
-          display: {
-            currentTemp: true,
-            feelsLike: true,
-            humidity: true,
-            windSpeed: true,
-            condition: true,
-            dailyForecast: true,
-            uvIndex: true,
-            precipitation: true,
-            pressure: true,
-            visibility: true,
-          },
-          recentLocations: [],
-        },
-      });
+  const refreshAppStateFromSupabase = async () => {
+    if (!isSupabaseConfigured) {
+      setBackupAutomation(DEFAULT_BACKUP_AUTOMATION);
       return;
     }
 
-    setBackupAutomation(DEFAULT_BACKUP_AUTOMATION);
+    try {
+      const [user, granja] = await Promise.all([getMyUser(), getMyLatestGranja()]);
+
+      if (user) {
+        onUpdatePersonalProfile({
+          fullName: user.full_name,
+          email: user.email,
+          phone: user.phone ?? '',
+        });
+      }
+
+      if (granja) {
+        const selectedPalette =
+          granja.selected_palette ? (granja.selected_palette as SystemSettingsData['selectedPalette']) : 'blue';
+        setBackupAutomation(getBackupAutomationSettingsFromGranja(granja));
+
+        onUpdateFarmProfile({
+          farmName: granja.farm_name,
+          state: granja.state,
+          city: granja.city,
+          birdCount: granja.bird_count,
+          selectedPalette,
+          marketingSource: granja.marketing_source ?? '',
+        });
+
+        onUpdateSystemSettings({
+          selectedPalette,
+          fontFamily: appState.systemSettings.fontFamily || 'inter',
+          borderRadius: appState.systemSettings.borderRadius || 'rounded',
+          eggSalePrice: Number(granja.egg_sale_price ?? 0),
+          birdSalePrice: Number(granja.bird_sale_price ?? 0),
+          litterSalePrice: Number(granja.litter_sale_price ?? 0),
+          weather: {
+            display: {
+              currentTemp: true,
+              feelsLike: true,
+              humidity: true,
+              windSpeed: true,
+              condition: true,
+              dailyForecast: true,
+              uvIndex: true,
+              precipitation: true,
+              pressure: true,
+              visibility: true,
+            },
+            recentLocations: [],
+          },
+        });
+        return;
+      }
+
+      setBackupAutomation(DEFAULT_BACKUP_AUTOMATION);
+    } catch (e) {
+      console.warn('Unable to refresh app state from Supabase:', e);
+      setBackupAutomation(DEFAULT_BACKUP_AUTOMATION);
+    }
   };
 
   useEffect(() => {
@@ -1517,7 +1611,21 @@ export default function AppShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
+            {deferredPrompt && (
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className={[
+                  'px-3 py-1.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm transition-all duration-250 active:scale-95 cursor-pointer shadow-sm items-center gap-2',
+                  isDarkMode
+                    ? 'bg-brand-primary/20 text-brand-primary hover:bg-brand-primary/30 border border-brand-primary/30'
+                    : 'bg-brand-primary text-white hover:bg-brand-hover border border-brand-hover'
+                ].join(' ')}
+              >
+                Instalar App
+              </button>
+            )}
             <button
               type="button"
               onClick={onToggleDarkMode}
@@ -1555,10 +1663,19 @@ export default function AppShell({
         </header>
 
         <main 
-          className={`flex-1 min-w-0 pb-24 md:pb-0 ${isDarkMode ? 'bg-[#0b1220]' : ''}`} 
+          className={`flex-1 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0 ${isDarkMode ? 'bg-[#0b1220]' : ''}`} 
           role="main"
         >
-          {renderPage()}
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full min-h-[400px]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm font-semibold text-gray-500 animate-pulse">Carregando módulo...</span>
+              </div>
+            </div>
+          }>
+            {renderPage()}
+          </Suspense>
         </main>
       </div>
     </div>

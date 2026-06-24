@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { ArrowRight, ShieldCheck, Warehouse, Database, Check, AlertCircle, Copy, Terminal } from 'lucide-react';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import React from 'react';
+import { ArrowRight, ShieldCheck, LineChart, Egg } from 'lucide-react';
 
 interface OnboardingHeroProps {
   onStart: () => void;
@@ -13,44 +12,55 @@ interface OnboardingHeroProps {
 }
 
 export default function OnboardingHero({ onStart, onGoToLogin }: OnboardingHeroProps) {
-  const [showSqlGuide, setShowSqlGuide] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const sqlSchema = `DROP TABLE IF EXISTS farms;
-DROP TABLE IF EXISTS profiles;
-
-CREATE TABLE IF NOT EXISTS users (
-  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  full_name text NOT NULL,
-  email text NOT NULL,
-  phone text
-);
-
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "users_select_authenticated" ON users FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "users_insert_own" ON users FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "users_update_own" ON users FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);`;
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(sqlSchema);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="w-full min-h-screen flex flex-col md:flex-row bg-brand-main text-on-surface antialiased overflow-x-hidden">
-      {/* Left Side: Hero Image Spot (Becomes top block on mobile, left block on desktop) */}
-      <div className="relative w-full h-[320px] md:h-screen md:w-1/2 bg-slate-200 flex-shrink-0">
-        <img
-          alt="Granja Caipira no campo ao amanhecer"
-          className="absolute inset-0 w-full h-full object-cover object-center"
-          referrerPolicy="no-referrer"
-          src="https://lh3.googleusercontent.com/aida/AP1WRLtpcOu9ituv7Jr4PpKvI2-G1GsSI_8Pqcs7v79_qKuKBcHmwUOQ-8-rdck9w55cyUImlb0b0AxYUkXInBXQHOfJ0md1PgU7Hl5K7vpbZ_seKDYkeXwtUYpOxdDyEvYT4OkwBTjLfbLnjRgZW4yrPBgph39wSzpNdpvIFlOozO9SNPAIK7_iADZk9VWA172ugR_CZijkJTXwSNvBKpyaWM5Kmd4dd72n37a7KdGhorCiFjNBPq9NT4hHHa0"
+      {/* Left Side: Hero Image Spot and Advantages */}
+      <div className="relative w-full h-[400px] md:h-screen md:w-1/2 bg-[#0f1c2b] flex-shrink-0 overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 md:hover:scale-105"
+          style={{ backgroundImage: `url('/hero_background.png')` }}
         />
-        {/* Gradients to harmonize visual integration & make elements look unified */}
-        <div className="absolute inset-0 bg-brand-primary mix-blend-multiply opacity-15"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-main via-brand-main/10 to-transparent md:bg-gradient-to-r md:from-transparent md:via-brand-main/20 md:to-brand-main"></div>
+        
+        {/* Modern Dark/Color Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0f1c2b] via-[#0f1c2b]/60 to-transparent md:bg-gradient-to-r md:from-transparent md:via-[#0f1c2b]/80 md:to-brand-main"></div>
+        <div className="absolute inset-0 bg-brand-primary mix-blend-overlay opacity-30"></div>
+
+        {/* Floating Advantages (Visible mainly on Desktop, hidden or small on mobile) */}
+        <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-12 pb-12 md:pb-24 pointer-events-none z-10">
+          
+          <div className="hidden md:flex flex-col gap-4 max-w-sm mb-auto mt-12">
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl animate-fade-in-up">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-green-500/20 text-green-400 rounded-lg">
+                  <LineChart className="w-5 h-5" />
+                </div>
+                <h4 className="text-white font-bold text-sm">Rentabilidade Comprovada</h4>
+              </div>
+              <p className="text-slate-300 text-xs leading-relaxed">
+                Nossos algoritmos ajudam você a otimizar a ração e acompanhar a margem de lucro de cada lote, em tempo real.
+              </p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-brand-primary/20 text-brand-primary rounded-lg">
+                  <Egg className="w-5 h-5" />
+                </div>
+                <h4 className="text-white font-bold text-sm">Alta Produtividade</h4>
+              </div>
+              <p className="text-slate-300 text-xs leading-relaxed">
+                Monitore a taxa de postura diária e a viabilidade dos animais para alcançar o máximo potencial produtivo.
+              </p>
+            </div>
+          </div>
+          
+          <div className="text-white md:hidden mt-auto pb-4">
+            <h3 className="text-2xl font-extrabold mb-2 leading-tight">O futuro da sua<br/>produção caipira.</h3>
+            <p className="text-sm text-slate-300">Gestão profissional, lucro real.</p>
+          </div>
+        </div>
       </div>
 
       {/* Right Side: Content & Actions Area */}
@@ -60,62 +70,15 @@ CREATE POLICY "users_update_own" ON users FOR UPDATE USING (auth.uid() = id) WIT
 
         <div className="max-w-md mx-auto md:mx-0 w-full relative z-10">
           
-          {/* Supabase Connection Status Banner */}
-          <div className="mb-6 p-3 bg-white border border-gray-200 rounded-xl shadow-xs flex items-center justify-between text-xs font-semibold">
-            <div className="flex items-center gap-2">
-              <Database className={`w-4 h-4 ${isSupabaseConfigured ? 'text-green-600' : 'text-amber-500 animate-pulse'}`} />
-              <div>
-                <span className="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Status do Supabase</span>
-                <span className={isSupabaseConfigured ? 'text-green-700' : 'text-amber-600'}>
-                  {isSupabaseConfigured ? 'Banco de Dados Conectado' : 'Configuração de Credenciais Pendente'}
-                </span>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => setShowSqlGuide(!showSqlGuide)}
-              className="px-2.5 py-1 text-[10px] uppercase font-bold tracking-wider text-brand-primary bg-brand-primary/10 rounded-md hover:bg-brand-primary/20 transition-all cursor-pointer"
-            >
-              {showSqlGuide ? 'Fechar Guia' : 'Ver Instruções SQL'}
-            </button>
-          </div>
-
-          {/* SQL Setup Instructions */}
-          {showSqlGuide && (
-            <div className="mb-6 p-4 bg-[#1e1e24] text-[#d4d4d8] border border-gray-800 rounded-xl shadow-lg relative font-mono text-[11px] animate-scale">
-              <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-800">
-                <span className="font-sans font-bold text-gray-400 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Terminal className="w-3.5 h-3.5 text-brand-primary" />
-                  Script de criação da tabela Supabase
-                </span>
-                <button
-                  onClick={handleCopySql}
-                  className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer text-[10px] px-2 py-1 bg-white/5 rounded-md border border-white/10"
-                >
-                  {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                  {copied ? 'Copiado!' : 'Copiar'}
-                </button>
-              </div>
-              <p className="font-sans text-xs text-gray-400 mb-3 font-medium">
-                Execute o comando abaixo no painel <strong className="text-[#a3c9ff]">SQL Editor</strong> do seu projeto Supabase:
-              </p>
-              <pre className="overflow-x-auto whitespace-pre p-2 bg-black/30 rounded-lg max-h-40 overflow-y-auto text-green-400 leading-relaxed scrollbar-thin">
-                {sqlSchema}
-              </pre>
-            </div>
-          )}
+          {/* Removed dev banners */}
 
           {/* Brand Header */}
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex flex-col items-center md:items-start mb-10">
             <img
                 src="/logo.png"
                 alt="Logo Granja de Bolso"
-                className="w-16 h-16 object-contain"
+                className="w-36 h-36 md:w-44 md:h-44 object-contain drop-shadow-sm"
               />
-            <div>
-              <span className="font-bold text-2xl text-brand-primary tracking-tight">Granja de Bolso</span>
-              <span className="block text-xs uppercase tracking-widest text-[#717783] font-medium">Agro-Precision</span>
-            </div>
           </div>
 
           {/* Typography Heading */}
@@ -124,7 +87,7 @@ CREATE POLICY "users_update_own" ON users FOR UPDATE USING (auth.uid() = id) WIT
           </h1>
 
           <p className="text-sm sm:text-base text-[#414752] leading-relaxed mb-8 font-medium">
-            Eficiência, rastreabilidade e controle total da sua operação logística e avícola, direto na palma da sua mão com integração em tempo real no banco de dados **Supabase**.
+            Eficiência, rastreabilidade e controle total da sua operação avícola, direto na palma da sua mão. Seus dados estão sempre seguros e disponíveis de onde você estiver.
           </p>
 
           {/* Actions Column */}
@@ -147,21 +110,11 @@ CREATE POLICY "users_update_own" ON users FOR UPDATE USING (auth.uid() = id) WIT
             </button>
           </div>
 
-          {/* Setup Alert Message if missing keys */}
-          {!isSupabaseConfigured && (
-            <div className="mt-6 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-              <p className="text-[11px] text-amber-800 leading-relaxed font-semibold">
-                **Dica do Desenvolvedor**: Para salvar dados diretamente no Supabase, configure as variáveis de ambiente **VITE_SUPABASE_URL** e **VITE_SUPABASE_ANON_KEY** nas configurações de Segredos de seu Workspace. Enquanto não configurado, o app utilizará cache local do navegador.
-              </p>
-            </div>
-          )}
-
           {/* Trust Meta Indicator */}
-          <div className="mt-8 pt-6 border-t border-gray-200/60 flex items-center gap-2">
-            <ShieldCheck className="text-gray-400 w-5 h-5 flex-shrink-0" />
-            <span className="text-xs text-gray-400 font-medium">
-              Plataforma Segura Institucional • v2.4.1
+          <div className="mt-10 pt-6 border-t border-gray-200/60 flex items-center gap-2">
+            <ShieldCheck className="text-brand-primary w-5 h-5 flex-shrink-0" />
+            <span className="text-xs text-gray-600 font-semibold tracking-wide">
+              Feito por quem entende: criado de avicultor para avicultor.
             </span>
           </div>
         </div>
