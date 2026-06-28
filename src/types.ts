@@ -459,6 +459,7 @@ export interface InvestmentProject {
   dataInicio: string;
   dataConclusao?: string;
   items: InvestmentItem[];
+  isCustomized?: boolean;
   createdAt: string;
   updatedAt: string;
 }
