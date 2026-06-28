@@ -23,6 +23,8 @@ import {
   DatabaseBackup,
   Palette,
   Calculator,
+  MessageCircle,
+  Mail,
 } from 'lucide-react';
 
 export type RouteId =
@@ -45,7 +47,8 @@ export type RouteId =
   | 'sistema'
   | 'personalizacao'
   | 'backups'
-  | 'assinatura';
+  | 'assinatura'
+  | 'disponibilidade';
 
 interface SidebarProps {
   activeRoute: RouteId;
@@ -522,6 +525,33 @@ export default function Sidebar({
           );
         })}
       </nav>
+
+      {/* Support Block */}
+      {!isCollapsed ? (
+        <div className={`mt-auto mx-4 mb-4 p-4 rounded-2xl shrink-0 ${isDarkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-brand-primary/5 border border-brand-primary/10'}`}>
+          <div className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Precisa de Ajuda?</div>
+          
+          <a href="https://wa.me/5533998542100" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 mb-2.5 text-sm font-bold transition-colors ${isDarkMode ? 'text-slate-300 hover:text-[#25D366]' : 'text-slate-700 hover:text-[#25D366]'}`}>
+            <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-white shadow-sm border border-slate-100'}`}>
+              <MessageCircle className="w-4 h-4 text-[#25D366]" />
+            </div>
+            <span>(33) 99854-2100</span>
+          </a>
+          
+          <a href="mailto:granjadebolso@gmail.com" className={`flex items-center gap-3 text-sm font-bold transition-colors ${isDarkMode ? 'text-slate-300 hover:text-brand-primary' : 'text-slate-700 hover:text-brand-primary'}`}>
+            <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-white shadow-sm border border-slate-100'}`}>
+              <Mail className={`w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`} />
+            </div>
+            <span className="truncate" title="granjadebolso@gmail.com">E-mail Suporte</span>
+          </a>
+        </div>
+      ) : (
+        <div className="mt-auto mx-auto mb-4 shrink-0 flex flex-col gap-2">
+           <a href="https://wa.me/5533998542100" target="_blank" rel="noopener noreferrer" className={`p-2 rounded-xl transition-colors flex items-center justify-center ${isDarkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-brand-primary/10 text-slate-500'}`} title="Suporte WhatsApp: (33) 99854-2100">
+             <MessageCircle className="w-5 h-5 text-[#25D366]" />
+           </a>
+        </div>
+      )}
     </div>
   );
 
