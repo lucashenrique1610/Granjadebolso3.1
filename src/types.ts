@@ -218,26 +218,53 @@ export interface HealthProfessionalRecord {
   createdAt: string;
 }
 
-export type HealthProcedureType = 'consulta' | 'tratamento' | 'vacina' | 'medicamento' | 'monitoramento' | 'outro';
+// Novas categorias de procedimentos (3 categorias principais)
+export type HealthProcedureType = 'consulta' | 'tratamento' | 'monitoramento';
+
+// Tipos históricos mantidos para retrocompatibilidade
+export type LegacyHealthProcedureType = 'consulta' | 'tratamento' | 'vacina' | 'medicamento' | 'monitoramento' | 'outro';
+
 export type HealthRecoveryStatus = 'em_tratamento' | 'recuperado' | 'monitoramento' | 'cronico';
 
 export interface HealthRecord {
   id: string;
   occurredAt: string;
-  procedureType: HealthProcedureType;
+  procedureType: HealthProcedureType | LegacyHealthProcedureType;
   animalId: string;
-  galpaoId: string;
-  professionalId: string;
+  galpaoId?: string; // Opicional para monitoramento
+  professionalId?: string; // Opicional para monitoramento
   title: string;
-  diseaseName: string;
-  affectedBirdCount: number;
-  estimatedCost: number;
-  recoveryStatus: HealthRecoveryStatus;
+  diseaseName?: string;
+  affectedBirdCount?: number;
+  estimatedCost?: number;
+  recoveryStatus?: HealthRecoveryStatus;
   notes: string;
+  // Campos específicos para Consulta
+  consultationCost?: number; // Valor monetário da consulta
+  returnDate?: string; // Data de retorno
+  // Campos específicos para Tratamento
+  treatmentType?: 'vacina' | 'medicamento'; // Tipo de tratamento
+  productName?: string; // Nome do produto (vacina/medicamento)
+  applicationMethod?: string; // Método de aplicação
+  treatmentDetails?: string; // Detalhes do tratamento
+  nextDoseDate?: string; // Data da próxima dose
+  // Campos históricos mantidos para retrocompatibilidade
   vaccineName?: string;
   medicationName?: string;
-  applicationMethod?: string;
-  treatmentDetails?: string;
+  createdAt: string;
+}
+
+// Interface para alertas de saúde
+export interface HealthAlert {
+  id: string;
+  healthRecordId: string;
+  type: 'next_dose' | 'return_visit';
+  title: string;
+  description: string;
+  scheduledDate: string;
+  isRead: boolean;
+  readAt?: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
   createdAt: string;
 }
 

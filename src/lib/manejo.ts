@@ -3,6 +3,7 @@ import {
   GalpaoRecord,
   HealthProfessionalRecord,
   HealthRecord,
+  HealthAlert,
   MortalityRecord,
   VeterinaryStockRecord,
   NutritionalPhase,
@@ -279,5 +280,274 @@ export function buildMortalityReport(
       .map(([date, deadBirds]) => ({ date, deadBirds }))
       .sort((left, right) => left.date.localeCompare(right.date)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// NOVAS FUNÇÕES - Reestruturação Saúde
+// ---------------------------------------------------------------------------
+
+/**
+ * Valida um registro de saúde com base nas regras por tipo de intervenção
+ */
+export function validateHealthRecord(
+  record: HealthRecord,
+  animals: AnimalRecord[],
+  professionals: HealthProfessionalRecord[],
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const animal = animals.find((a) => a.id === record.animalId);
+  const professional = professionals.find((p) => p.id === record.professionalId);
+
+  // Validações comuns a todos os tipos
+  if (!record.occurredAt) errors.push('Data/hora da intervenção é obrigatória');
+  if (!record.animalId) errors.push('Seleção do lote é obrigatória');
+  if (!record.notes?.trim()) errors.push('Anotações são obrigatórias');
+
+  // Validações específicas por tipo
+  switch (record.procedureType) {
+    case 'consulta':
+      if (!record.professionalId) errors.push('Seleção do veterinário responsável é obrigatória');
+      if (professional && !canProfessionalManageHealth(professional)) {
+        errors.push('O profissional selecionado não tem permissão para registrar consultas');
+      }
+      if (record.consultationCost === undefined || record.consultationCost === null) {
+        errors.push('Valor monetário da consulta é obrigatório');
+      }
+      if (animal) {
+        // Para consultas, afeta toda a população do lote
+        record.affectedBirdCount = getAnimalCurrentQuantity(animal);
+      }
+      break;
+
+    case 'tratamento':
+      if (!record.professionalId) errors.push('Seleção do veterinário responsável é obrigatória');
+      if (professional && !canProfessionalManageHealth(professional)) {
+        errors.push('O profissional selecionado não tem permissão para registrar tratamentos');
+      }
+      if (!record.treatmentType) errors.push('Tipo de tratamento (vacina/medicamento) é obrigatório');
+      if (!record.productName?.trim()) errors.push('Nome do produto é obrigatório');
+      if (!record.affectedBirdCount || record.affectedBirdCount <= 0) {
+        errors.push('Quantidade de aves afetadas é obrigatória');
+      }
+      if (animal && record.affectedBirdCount! > getAnimalCurrentQuantity(animal)) {
+        errors.push('Quantidade de aves afetadas não pode exceder a população do lote');
+      }
+      break;
+
+    case 'monitoramento':
+      // Monitoramento é mais flexível
+      if (animal && record.affectedBirdCount && record.affectedBirdCount > getAnimalCurrentQuantity(animal)) {
+        errors.push('Quantidade de aves afetadas não pode exceder a população do lote');
+      }
+      break;
+
+    // Para tipos históricos
+    case 'vacina':
+    case 'medicamento':
+    case 'outro':
+      // Validações mínimas para retrocompatibilidade
+      break;
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Converte registros históricos para o novo formato
+ */
+export function convertLegacyRecord(record: HealthRecord): HealthRecord {
+  const converted: HealthRecord = { ...record };
+
+  // Mapeia tipos antigos para os novos
+  if (record.procedureType === 'vacina' || record.procedureType === 'medicamento') {
+    converted.procedureType = 'tratamento';
+    converted.treatmentType = record.procedureType === 'vacina' ? 'vacina' : 'medicamento';
+    converted.productName = record.vaccineName || record.medicationName || '';
+  }
+
+  // Se for um tipo antigo não mapeado, mantém como 'outro' mas mapeia para 'monitoramento'
+  if (record.procedureType === 'outro') {
+    converted.procedureType = 'monitoramento';
+  }
+
+  return converted;
+}
+
+/**
+ * Gera alertas para próximas doses e retornos de consulta
+ */
+export function getNextDoseAlerts(records: HealthRecord[], animals: AnimalRecord[]): HealthAlert[] {
+  const alerts: HealthAlert[] = [];
+  const animalMap = new Map(animals.map((a) => [a.id, a]));
+
+  records.forEach((record) => {
+    // Alertas para próximas doses (tratamentos)
+    if ((record.procedureType === 'tratamento' || record.procedureType === 'vacina' || record.procedureType === 'medicamento') && record.nextDoseDate) {
+      const daysLeft = daysUntil(record.nextDoseDate);
+      let priority: 'urgent' | 'high' | 'medium' | 'low' = 'low';
+      let title = '';
+      let description = '';
+
+      const animal = animalMap.get(record.animalId);
+
+      if (daysLeft < 0) {
+        priority = 'urgent';
+        title = `Dose vencida! ${record.productName || record.vaccineName || record.medicationName || 'Tratamento'}`;
+        description = `A dose do lote ${animal?.tag || record.animalId} está ${Math.abs(daysLeft)} dias vencida.`;
+      } else if (daysLeft === 0) {
+        priority = 'urgent';
+        title = `Dose HOJE! ${record.productName || record.vaccineName || record.medicationName || 'Tratamento'}`;
+        description = `A dose do lote ${animal?.tag || record.animalId} está marcada para hoje.`;
+      } else if (daysLeft <= 3) {
+        priority = 'high';
+        title = `Próxima dose em ${daysLeft} dia${daysLeft > 1 ? 's' : ''}`;
+        description = `${record.productName || record.vaccineName || record.medicationName || 'Tratamento'} para o lote ${animal?.tag || record.animalId}.`;
+      } else if (daysLeft <= 7) {
+        priority = 'medium';
+        title = `Próxima dose em ${daysLeft} dias`;
+        description = `${record.productName || record.vaccineName || record.medicationName || 'Tratamento'} para o lote ${animal?.tag || record.animalId}.`;
+      } else if (daysLeft <= 14) {
+        priority = 'low';
+        title = `Próxima dose em ${daysLeft} dias`;
+        description = `${record.productName || record.vaccineName || record.medicationName || 'Tratamento'} para o lote ${animal?.tag || record.animalId}.`;
+      }
+
+      if (title) {
+        alerts.push({
+          id: `alert-dose-${record.id}`,
+          healthRecordId: record.id,
+          type: 'next_dose',
+          title,
+          description,
+          scheduledDate: record.nextDoseDate,
+          isRead: false,
+          priority,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Alertas para retornos de consulta
+    if (record.procedureType === 'consulta' && record.returnDate) {
+      const daysLeft = daysUntil(record.returnDate);
+      let priority: 'urgent' | 'high' | 'medium' | 'low' = 'low';
+      let title = '';
+      let description = '';
+
+      const animal = animalMap.get(record.animalId);
+
+      if (daysLeft < 0) {
+        priority = 'urgent';
+        title = 'Retorno vencido!';
+        description = `O retorno da consulta do lote ${animal?.tag || record.animalId} está ${Math.abs(daysLeft)} dias vencido.`;
+      } else if (daysLeft === 0) {
+        priority = 'urgent';
+        title = 'Retorno HOJE!';
+        description = `O retorno da consulta do lote ${animal?.tag || record.animalId} está marcado para hoje.`;
+      } else if (daysLeft <= 3) {
+        priority = 'high';
+        title = `Retorno em ${daysLeft} dia${daysLeft > 1 ? 's' : ''}`;
+        description = `Retorno da consulta do lote ${animal?.tag || record.animalId}.`;
+      } else if (daysLeft <= 7) {
+        priority = 'medium';
+        title = `Retorno em ${daysLeft} dias`;
+        description = `Retorno da consulta do lote ${animal?.tag || record.animalId}.`;
+      }
+
+      if (title) {
+        alerts.push({
+          id: `alert-return-${record.id}`,
+          healthRecordId: record.id,
+          type: 'return_visit',
+          title,
+          description,
+          scheduledDate: record.returnDate,
+          isRead: false,
+          priority,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  });
+
+  // Ordena alertas por prioridade e data
+  const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+  return alerts.sort((a, b) => {
+    if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    }
+    return new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime();
+  });
+}
+
+/**
+ * Sincroniza tratamento com estoque veterinário (opcional)
+ */
+export function syncTreatmentWithStock(
+  treatmentRecord: HealthRecord,
+  stockItems: VeterinaryStockRecord[],
+): { canApply: boolean; message: string; matchedItem?: VeterinaryStockRecord } {
+  if (treatmentRecord.procedureType !== 'tratamento') {
+    return { canApply: true, message: '' };
+  }
+
+  const productName = treatmentRecord.productName?.toLowerCase().trim();
+  if (!productName) {
+    return { canApply: true, message: 'Nome do produto não informado. Verificação de estoque não realizada.' };
+  }
+
+  const matchedItem = stockItems.find((item) =>
+    item.name.toLowerCase().trim().includes(productName) || productName.includes(item.name.toLowerCase().trim())
+  );
+
+  if (!matchedItem) {
+    return {
+      canApply: true,
+      message: 'Produto não encontrado no estoque. Registrar tratamento mesmo assim?',
+    };
+  }
+
+  const stockStatus = getVeterinaryStockStatus(matchedItem);
+
+  if (stockStatus.isExpired) {
+    return {
+      canApply: false,
+      message: `Produto ${matchedItem.name} está vencido!`,
+      matchedItem,
+    };
+  }
+
+  if (stockStatus.isLowStock) {
+    return {
+      canApply: true,
+      message: `Atenção: estoque de ${matchedItem.name} está baixo (${matchedItem.quantity} ${matchedItem.unit}).`,
+      matchedItem,
+    };
+  }
+
+  if (stockStatus.isExpiringSoon) {
+    return {
+      canApply: true,
+      message: `Atenção: ${matchedItem.name} vence em ${stockStatus.remainingDays} dias.`,
+      matchedItem,
+    };
+  }
+
+  return { canApply: true, message: '', matchedItem };
+}
+
+/**
+ * Obtém a label do tipo de procedimento para exibição
+ */
+export function getHealthProcedureLabel(type: string): string {
+  const labels: Record<string, string> = {
+    consulta: 'Consulta Veterinária',
+    tratamento: 'Tratamento',
+    monitoramento: 'Monitoramento',
+    vacina: 'Vacinação',
+    medicamento: 'Medicação',
+    outro: 'Outro',
+  };
+  return labels[type] || type;
 }
 

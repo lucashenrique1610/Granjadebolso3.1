@@ -62,6 +62,8 @@ import {
   NUTRITIONAL_TARGETS,
   getBirdAgeInDays,
   getPhaseByAge,
+  getNextDoseAlerts,
+  getHealthProcedureLabel,
 } from '@/lib/manejo';
 import { exportRowsToExcel, exportRowsToPdf } from '@/lib/exportUtils';
 
@@ -109,14 +111,21 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
 
-const HEALTH_PROCEDURE_LABELS: Record<HealthRecord['procedureType'], string> = {
+const HEALTH_PROCEDURE_LABELS: Record<string, string> = {
   consulta: 'Consulta',
   tratamento: 'Tratamento',
+  monitoramento: 'Monitoramento',
+  // Mantidos para retrocompatibilidade
   vacina: 'Vacina',
   medicamento: 'Medicamento',
-  monitoramento: 'Monitoramento',
   outro: 'Outro',
 };
+
+const HEALTH_PROCEDURE_OPTIONS = [
+  { value: 'consulta', label: 'Consulta' },
+  { value: 'tratamento', label: 'Tratamento' },
+  { value: 'monitoramento', label: 'Monitoramento' },
+];
 
 const HEALTH_RECOVERY_LABELS: Record<HealthRecord['recoveryStatus'], string> = {
   em_tratamento: 'Em tratamento',
@@ -198,6 +207,12 @@ const emptyHealthDraft: Omit<HealthRecord, 'id' | 'createdAt'> = {
   medicationName: '',
   applicationMethod: '',
   treatmentDetails: '',
+  // Novos campos
+  consultationCost: 0,
+  returnDate: '',
+  treatmentType: undefined,
+  productName: '',
+  nextDoseDate: undefined,
 };
 
 const emptyStockDraft: Omit<VeterinaryStockRecord, 'id' | 'createdAt'> = {
@@ -407,6 +422,14 @@ export default function ManejoPage({
   }, []);
 
   const [selectedKnowledgeModule, setSelectedKnowledgeModule] = useState<KnowledgeModule | null>(null);
+  const [readHealthAlerts, setReadHealthAlerts] = useState<Set<string>>(new Set());
+
+  // Calcular alertas de saúde
+  const healthAlerts = useMemo(() => {
+    const allAlerts = getNextDoseAlerts(healthRecords, animals);
+    // Filtrar alertas já lidos
+    return allAlerts.filter(alert => !readHealthAlerts.has(alert.id));
+  }, [healthRecords, animals, readHealthAlerts]);
 
   // Calculate feed stock and days remaining
   const feedSummary = useMemo(() => {
@@ -1742,6 +1765,59 @@ export default function ManejoPage({
             </div>
           </section>
 
+          {/* Alertas de Saúde */}
+          {healthAlerts.length > 0 && (
+            <section className="mb-6">
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <AlertTriangle className="h-6 w-6 text-amber-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-amber-800">
+                    Alertas de Saúde ({healthAlerts.length})
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {healthAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`flex items-start justify-between gap-3 rounded-xl p-3 ${
+                        alert.priority === 'urgent' ? 'bg-red-100 border border-red-300' :
+                        alert.priority === 'high' ? 'bg-orange-100 border border-orange-300' :
+                        'bg-yellow-100 border border-yellow-300'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold uppercase tracking-[0.08em] ${
+                            alert.priority === 'urgent' ? 'text-red-700' :
+                            alert.priority === 'high' ? 'text-orange-700' :
+                            'text-yellow-700'
+                          }`}>
+                            {alert.priority === 'urgent' ? 'URGENTE' :
+                             alert.priority === 'high' ? 'IMPORTANTE' : 'AVISO'}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-500">
+                            {new Date(alert.scheduledDate).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-[#0f1c2b] mt-1">{alert.title}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{alert.description}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReadHealthAlerts((prev) => new Set([...prev, alert.id]));
+                        }}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="app-section-card flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-5 mb-5">
@@ -1777,7 +1853,7 @@ export default function ManejoPage({
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Tipo de procedimento</span>
                   <select value={healthDraft.procedureType} onChange={(event) => setHealthDraft((prev) => ({ ...prev, procedureType: event.target.value as HealthRecord['procedureType'] }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                    {Object.entries(HEALTH_PROCEDURE_LABELS).map(([value, label]) => (
+                    {HEALTH_PROCEDURE_OPTIONS.map(({ value, label }) => (
                       <option key={value} value={value}>
                         {label}
                       </option>
@@ -1837,37 +1913,82 @@ export default function ManejoPage({
                   <input type="number" min={0} value={healthDraft.affectedBirdCount} onChange={(event) => setHealthDraft((prev) => ({ ...prev, affectedBirdCount: Number(event.target.value || 0) }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
                 </label>
                 
-                {/* Conditional fields based on procedureType */}
-                {healthDraft.procedureType === 'vacina' && (
+                {/* Campos condicionais por tipo de procedimento */}
+
+                {/* CAMPOS PARA CONSULTA */}
+                {healthDraft.procedureType === 'consulta' && (
                   <>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Nome da Vacina *</span>
-                      <input required value={healthDraft.vaccineName || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, vaccineName: event.target.value }))} placeholder="Ex: Newcastle Disease Vaccine" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Valor da consulta *</span>
+                      <input type="number" min="0" step="0.01" required value={healthDraft.consultationCost || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, consultationCost: Number(event.target.value) }))} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Modo de Aplicação *</span>
-                      <input required value={healthDraft.applicationMethod || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, applicationMethod: event.target.value }))} placeholder="Ex: Subcutânea, Oral, Injeção Intramuscular" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Data de retorno</span>
+                      <input type="datetime-local" value={healthDraft.returnDate || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, returnDate: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
                     </label>
                   </>
                 )}
-                
-                {healthDraft.procedureType === 'medicamento' && (
-                  <>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Nome do Medicamento *</span>
-                      <input required value={healthDraft.medicationName || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, medicationName: event.target.value }))} placeholder="Ex: Amoxicilina" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                    </label>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Modo de Aplicação *</span>
-                      <input required value={healthDraft.applicationMethod || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, applicationMethod: event.target.value }))} placeholder="Ex: Via Oral, Água de bebida, Injeção" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                    </label>
-                  </>
-                )}
-                
+
+                {/* CAMPOS PARA TRATAMENTO */}
                 {healthDraft.procedureType === 'tratamento' && (
+                  <>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Tipo *</span>
+                      <select value={healthDraft.treatmentType || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, treatmentType: event.target.value as 'vacina' | 'medicamento' }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
+                        <option value="">Selecione</option>
+                        <option value="vacina">Vacina</option>
+                        <option value="medicamento">Remédio</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Nome do produto *</span>
+                      <input required value={healthDraft.productName || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, productName: event.target.value }))} placeholder="Ex: Amoxicilina, Newcastle Disease Vaccine" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Modo de aplicação *</span>
+                      <select value={healthDraft.applicationMethod || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, applicationMethod: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
+                        <option value="">Selecione</option>
+                        <option value="água">Na água</option>
+                        <option value="seringa">Seringa</option>
+                        <option value="oral">Via oral</option>
+                        <option value="injeção">Injeção</option>
+                        <option value="outro">Outro</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Próximas doses?</span>
+                      <select value={healthDraft.nextDoseDate ? 'sim' : 'nao'} onChange={(event) => {
+                        if (event.target.value === 'nao') {
+                          setHealthDraft((prev) => ({ ...prev, nextDoseDate: '' }));
+                        } else {
+                          // When selecting "Sim", initialize with empty string to show the date field
+                          if (!healthDraft.nextDoseDate) {
+                            setHealthDraft((prev) => ({ ...prev, nextDoseDate: '' }));
+                          }
+                        }
+                      }} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
+                        <option value="nao">Não</option>
+                        <option value="sim">Sim</option>
+                      </select>
+                    </label>
+                    {(healthDraft.nextDoseDate !== undefined && healthDraft.nextDoseDate !== null) ? (
+                      <label className="flex flex-col gap-1.5 md:col-span-2">
+                        <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Data da próxima dose</span>
+                        <input type="datetime-local" value={healthDraft.nextDoseDate || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, nextDoseDate: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                      </label>
+                    ) : null}
+                    <label className="flex flex-col gap-1.5 md:col-span-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Detalhes do tratamento</span>
+                      <textarea value={healthDraft.treatmentDetails || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, treatmentDetails: event.target.value }))} rows={3} placeholder="Descreva mais detalhes sobre o tratamento (opcional)" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                    </label>
+                  </>
+                )}
+
+                {/* CAMPOS PARA MONITORAMENTO */}
+                {healthDraft.procedureType === 'monitoramento' && (
                   <label className="flex flex-col gap-1.5 md:col-span-2">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Detalhes do Tratamento *</span>
-                    <textarea required value={healthDraft.treatmentDetails || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, treatmentDetails: event.target.value }))} rows={3} placeholder="Descreva o tratamento, duração, medicamentos usados, etc." className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Observações *</span>
+                    <textarea required value={healthDraft.notes || ''} onChange={(event) => setHealthDraft((prev) => ({ ...prev, notes: event.target.value }))} rows={5} placeholder="Registre suas observações sobre o lote/animais..." className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
                   </label>
                 )}
                 

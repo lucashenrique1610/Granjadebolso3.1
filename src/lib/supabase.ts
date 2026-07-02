@@ -186,18 +186,24 @@ interface SupabaseHealthRecordRow {
   occurred_at: string;
   procedure_type: string;
   animal_id: string;
-  galpao_id: string;
-  professional_id: string;
+  galpao_id?: string;
+  professional_id?: string;
   title: string;
-  disease_name: string;
-  affected_bird_count: number;
-  estimated_cost: number;
-  recovery_status: string;
+  disease_name?: string;
+  affected_bird_count?: number;
+  estimated_cost?: number;
+  recovery_status?: string;
   notes: string;
   vaccine_name?: string;
   medication_name?: string;
   application_method?: string;
   treatment_details?: string;
+  // Novos campos
+  consultation_cost?: number;
+  return_date?: string;
+  treatment_type?: string;
+  product_name?: string;
+  next_dose_date?: string;
 }
 
 interface SupabaseVeterinaryStockRow {
@@ -457,14 +463,20 @@ function mapHealthRecordRow(row: SupabaseHealthRecordRow): HealthRecord {
     professionalId: row.professional_id,
     title: row.title,
     diseaseName: row.disease_name,
-    affectedBirdCount: Number(row.affected_bird_count ?? 0),
-    estimatedCost: Number(row.estimated_cost ?? 0),
+    affectedBirdCount: row.affected_bird_count !== undefined ? Number(row.affected_bird_count) : undefined,
+    estimatedCost: row.estimated_cost !== undefined ? Number(row.estimated_cost) : undefined,
     recoveryStatus: row.recovery_status as HealthRecord['recoveryStatus'],
     notes: row.notes,
     vaccineName: row.vaccine_name,
     medicationName: row.medication_name,
     applicationMethod: row.application_method,
     treatmentDetails: row.treatment_details,
+    // Novos campos
+    consultationCost: row.consultation_cost !== undefined ? Number(row.consultation_cost) : undefined,
+    returnDate: row.return_date,
+    treatmentType: row.treatment_type as HealthRecord['treatmentType'],
+    productName: row.product_name,
+    nextDoseDate: row.next_dose_date,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }
@@ -1591,8 +1603,8 @@ export async function upsertMyHealthRecord(record: HealthRecord) {
     occurred_at: record.occurredAt ? new Date(record.occurredAt).toISOString() : new Date().toISOString(),
     procedure_type: record.procedureType,
     animal_id: record.animalId,
-    galpao_id: record.galpaoId,
-    professional_id: record.professionalId,
+    galpao_id: record.galpaoId || null,
+    professional_id: record.professionalId || null,
     title: record.title,
     disease_name: record.diseaseName,
     affected_bird_count: record.affectedBirdCount,
@@ -1603,6 +1615,12 @@ export async function upsertMyHealthRecord(record: HealthRecord) {
     medication_name: record.medicationName,
     application_method: record.applicationMethod,
     treatment_details: record.treatmentDetails,
+    // Novos campos
+    consultation_cost: record.consultationCost,
+    return_date: record.returnDate,
+    treatment_type: record.treatmentType,
+    product_name: record.productName,
+    next_dose_date: record.nextDoseDate,
   };
 
   const { data, error } = await sb.from('saude_registros').upsert(payload).select('*').single();
