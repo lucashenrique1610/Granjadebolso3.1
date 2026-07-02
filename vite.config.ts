@@ -93,7 +93,7 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       headers: {
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co https://coresg-normal.trae.ai; connect-src 'self' https://*.supabase.co https://api.open-meteo.com https://generativelanguage.googleapis.com; frame-ancestors 'self'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co https://coresg-normal.trae.ai; connect-src 'self' https://*.supabase.co https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.bigdatacloud.net https://api.openweathermap.org https://generativelanguage.googleapis.com; frame-ancestors 'self'",
         'X-Frame-Options': 'SAMEORIGIN',
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -102,7 +102,7 @@ export default defineConfig(() => {
     },
     preview: {
       headers: {
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co https://coresg-normal.trae.ai; connect-src 'self' https://*.supabase.co https://api.open-meteo.com https://generativelanguage.googleapis.com; frame-ancestors 'self'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co https://coresg-normal.trae.ai; connect-src 'self' https://*.supabase.co https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.bigdatacloud.net https://api.openweathermap.org https://generativelanguage.googleapis.com; frame-ancestors 'self'",
         'X-Frame-Options': 'SAMEORIGIN',
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
