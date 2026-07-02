@@ -1,6 +1,11 @@
 -- =====================================================
 -- GRANJA DE BOLSO - Script SQL v2 COMPLETO
 -- =====================================================
+-- ⚠️ DEPRECADO — NÃO USE EM PROJETOS NOVOS.
+-- Este arquivo usa colunas antigas (ex.: granjas.nome, animais.nome)
+-- incompatíveis com o app React atual (src/lib/supabase.ts).
+-- Use supabase_final.sql + supabase_migrate.sql.
+-- =====================================================
 -- MELHORIAS:
 -- ✅ Todas as 18 tabelas com RLS
 -- ✅ Funções RPC para o frontend chamar

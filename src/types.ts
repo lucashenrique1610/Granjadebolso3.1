@@ -7,7 +7,10 @@ export interface UserPersonalData {
   fullName: string;
   email: string;
   phone: string;
-  password?: string;
+}
+
+export interface RegistrationCredentials {
+  password: string;
 }
 
 export interface FarmConfigData {
@@ -421,14 +424,6 @@ export interface UnifiedWeatherData {
   location: string;
   lastUpdated: string;
   source: 'open-meteo' | 'openweather';
-}
-
-export interface WeatherData {
-  temperatura: number;
-  umidade: number;
-  velocidadeVento: number;
-  chuvaMm: number;
-  ultimaAtualizacao: string;
 }
 
 export interface Recommendation {

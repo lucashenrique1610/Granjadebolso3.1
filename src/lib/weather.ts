@@ -145,8 +145,6 @@ async function fetchFromOpenMeteo(
   lon: number,
   locationName: string
 ): Promise<UnifiedWeatherData> {
-  console.log(`[WeatherService] Open-Meteo: Fetching data for ${lat}, ${lon}`);
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -217,8 +215,6 @@ async function fetchFromOpenWeather(
   locationName: string,
   apiKey: string
 ): Promise<UnifiedWeatherData> {
-  console.log(`[WeatherService] OpenWeather: Fetching fallback data`);
-
   if (!apiKey) {
     throw new Error('OpenWeather API key not provided');
   }

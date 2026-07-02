@@ -5,13 +5,10 @@ export async function processSyncQueue() {
   const queue = await getSyncQueue();
   if (queue.length === 0) return;
 
-  console.log(`[Sync] Processando ${queue.length} operações pendentes...`);
-
   for (const op of queue) {
     try {
       await executeOperation(op);
       await removeOperationFromQueue(op.id);
-      console.log(`[Sync] Operação ${op.action} processada com sucesso.`);
     } catch (error: any) {
       // Se for erro de rede, paramos a fila para tentar depois
       if (error?.message === 'Failed to fetch' || !navigator.onLine) {

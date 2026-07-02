@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { assertPasswordPolicy } from '@/lib/passwordSecurity';
+import type { PasswordPolicyContext } from '@/lib/passwordSecurity';
 import {
   AnimalRecord,
   BackupAutomationSettings,
@@ -8,7 +10,6 @@ import {
   GalpaoRecord,
   HealthProfessionalRecord,
   HealthRecord,
-  MortalityAttachment,
   MortalityRecord,
   PurchaseRecord,
   SupplierRecord,
@@ -217,14 +218,6 @@ interface SupabaseVeterinaryStockRow {
   notes: string;
 }
 
-interface SupabaseMortalityAttachmentRow {
-  id: string;
-  file_name: string;
-  mime_type: string;
-  size_in_bytes: number;
-  data_url: string;
-  uploaded_at: string;
-}
 
 interface SupabaseMortalityRow {
   id: string;
@@ -494,17 +487,6 @@ function mapVeterinaryStockRow(row: SupabaseVeterinaryStockRow): VeterinaryStock
   };
 }
 
-function mapMortalityAttachmentRow(row: SupabaseMortalityAttachmentRow): MortalityAttachment {
-  return {
-    id: row.id,
-    fileName: row.file_name,
-    mimeType: row.mime_type,
-    sizeInBytes: Number(row.size_in_bytes ?? 0),
-    dataUrl: row.data_url,
-    uploadedAt: row.uploaded_at,
-  };
-}
-
 function mapMortalityRow(row: SupabaseMortalityRow): MortalityRecord {
   return {
     id: row.id,
@@ -516,7 +498,7 @@ function mapMortalityRow(row: SupabaseMortalityRow): MortalityRecord {
     cause: row.cause as MortalityRecord['cause'],
     notes: row.notes,
     causeStatus: (row.cause_status as any) || null,
-    attachments: [], // Originalmente tinha attachments, mas vamos deixar como vazio por enquanto
+    attachments: [],
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
   };
@@ -599,18 +581,15 @@ function mapIngredientRow(row: any): IngredientRecord {
 }
 
 function mapFormulationRow(row: SupabaseFormulationRow): FormulationRecord {
-  console.log('[DEBUG] mapFormulationRow recebendo:', row);
-  const mapped = {
+  return {
     id: row.id,
     name: row.name,
     phase: row.phase as FormulationRecord['phase'],
-    animalId: (row as any).animal_id, // Use type assertion just in case
+    animalId: (row as any).animal_id,
     ingredients: row.ingredients,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at ?? new Date().toISOString(),
   };
-  console.log('[DEBUG] mapFormulationRow mapeado:', mapped);
-  return mapped;
 }
 
 function mapFormulatedFeedStockRow(row: SupabaseFormulatedFeedStockRow): FormulatedFeedStockRecord {
@@ -723,21 +702,28 @@ function mapBackupRow(row: SupabaseBackupRow): BackupRecord {
   };
 }
 
-async function getAuthenticatedUserAndGranja() {
+async function getAuthenticatedUserAndGranja(requireGranja = true) {
   const sb = requireSupabase();
   const { data: userData, error: userError } = await sb.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('Usuário não autenticado.');
 
   const granja = await getMyLatestGranja();
-  if (!granja) {
+  if (!granja && requireGranja) {
     throw new Error('Nenhuma granja encontrada para o usuário. Finalize o cadastro inicial da granja antes de continuar.');
   }
 
   return {
     userId: userData.user.id,
-    granjaId: granja.id,
+    granjaId: granja?.id ?? null,
   };
+}
+
+function applyGranjaScope<T extends { eq: (column: string, value: string) => T }>(
+  query: T,
+  granjaId: string | null,
+): T {
+  return granjaId ? query.eq('granja_id', granjaId) : query;
 }
 
 function requireSupabase() {
@@ -756,21 +742,30 @@ export async function signUpWithEmail(
   metadata?: { full_name?: string; phone?: string },
 ) {
   const sb = requireSupabase();
+  const normalizedEmail = email.trim().toLowerCase();
+  const fullName = metadata?.full_name?.trim();
+  const phone = metadata?.phone?.trim();
   const normalizedMetadata = {
-    ...(metadata?.full_name ? { full_name: metadata.full_name } : {}),
-    ...(metadata?.phone ? { phone: metadata.phone } : {}),
+    ...(fullName ? { full_name: fullName } : {}),
+    ...(phone ? { phone } : {}),
   };
+
+  assertPasswordPolicy(password, {
+    email: normalizedEmail,
+    fullName,
+    phone,
+  });
 
   const signUpPayload =
     Object.keys(normalizedMetadata).length > 0
       ? {
-          email,
+          email: normalizedEmail,
           password,
           options: {
             data: normalizedMetadata,
           },
         }
-      : { email, password };
+      : { email: normalizedEmail, password };
 
   const { data, error } = await sb.auth.signUp(signUpPayload);
   if (error) throw error;
@@ -779,23 +774,45 @@ export async function signUpWithEmail(
 
 export async function signInWithEmail(email: string, password: string) {
   const sb = requireSupabase();
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
   if (error) throw error;
   return data;
 }
 
+export async function requestPasswordResetEmail(email: string) {
+  const sb = requireSupabase();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error('Informe o e-mail da conta para redefinir a senha.');
+
+  const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+  const { data, error } = await sb.auth.resetPasswordForEmail(
+    normalizedEmail,
+    redirectTo ? { redirectTo } : undefined,
+  );
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCurrentUserPassword(password: string, context: PasswordPolicyContext = {}) {
+  const sb = requireSupabase();
+  const { data: userData, error: userError } = await sb.auth.getUser();
+  if (userError) throw userError;
+
+  assertPasswordPolicy(password, {
+    ...context,
+    email: context.email ?? userData.user?.email ?? undefined,
+  });
+
+  const { data, error } = await sb.auth.updateUser({ password });
+  if (error) throw error;
+  return data;
+}
 export async function signOut() {
   const sb = requireSupabase();
   const { error } = await sb.auth.signOut();
   if (error) throw error;
 }
 
-export async function getSession() {
-  const sb = requireSupabase();
-  const { data, error } = await sb.auth.getSession();
-  if (error) throw error;
-  return data.session;
-}
 
 export async function getMyUser() {
   const sb = requireSupabase();
@@ -834,7 +851,6 @@ export async function upsertMyUser(user: { full_name: string; email: string; pho
   };
 
   try {
-    console.log('[upsertMyUser] Tentando com payload completo:', fullPayload);
     const { data, error } = await sb
       .from('users')
       .upsert(fullPayload, { onConflict: 'id' })
@@ -842,7 +858,6 @@ export async function upsertMyUser(user: { full_name: string; email: string; pho
       .single();
 
     if (!error) {
-      console.log('[upsertMyUser] Sucesso com payload completo!');
       return data as SupabaseUserRow;
     }
     console.warn('[upsertMyUser] Erro com payload completo:', error);
@@ -858,7 +873,6 @@ export async function upsertMyUser(user: { full_name: string; email: string; pho
   };
 
   try {
-    console.log('[upsertMyUser] Tentando com payload mínimo:', minimalPayload);
     const { data, error } = await sb
       .from('users')
       .upsert(minimalPayload, { onConflict: 'id' })
@@ -866,7 +880,6 @@ export async function upsertMyUser(user: { full_name: string; email: string; pho
       .single();
 
     if (!error) {
-      console.log('[upsertMyUser] Sucesso com payload mínimo!');
       return data as SupabaseUserRow;
     }
     console.warn('[upsertMyUser] Erro com payload mínimo:', error);
@@ -913,7 +926,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
   };
 
   try {
-    console.log('[createMyGranja] Tentando com payload completo:', fullPayload);
     const { data, error } = await sb
       .from('granjas')
       .insert([fullPayload])
@@ -921,7 +933,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
       .single();
 
     if (!error) {
-      console.log('[createMyGranja] Sucesso com payload completo!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -947,7 +958,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
   };
 
   try {
-    console.log('[createMyGranja] Tentando com payload médio:', mediumPayload);
     const { data, error } = await sb
       .from('granjas')
       .insert([mediumPayload])
@@ -955,7 +965,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
       .single();
 
     if (!error) {
-      console.log('[createMyGranja] Sucesso com payload médio!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -976,7 +985,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
   };
 
   try {
-    console.log('[createMyGranja] Tentando com payload mínimo:', minimalPayload);
     const { data, error } = await sb
       .from('granjas')
       .insert([minimalPayload])
@@ -984,7 +992,6 @@ export async function createMyGranja(granja: Partial<Omit<SupabaseGranjaRow, 'id
       .single();
 
     if (!error) {
-      console.log('[createMyGranja] Sucesso com payload mínimo!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -1044,8 +1051,6 @@ export async function updateMyGranja(
     if (granja.auto_backup_frequency !== undefined) fullUpdate.auto_backup_frequency = granja.auto_backup_frequency;
     if (granja.auto_backup_last_run_at !== undefined) fullUpdate.auto_backup_last_run_at = granja.auto_backup_last_run_at;
     if (granja.auto_backup_keep_count !== undefined) fullUpdate.auto_backup_keep_count = granja.auto_backup_keep_count;
-
-    console.log('[updateMyGranja] Tentando com payload completo:', fullUpdate);
     const { data, error } = await sb
       .from('granjas')
       .update(fullUpdate)
@@ -1055,7 +1060,6 @@ export async function updateMyGranja(
       .single();
 
     if (!error) {
-      console.log('[updateMyGranja] Sucesso com payload completo!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -1078,8 +1082,6 @@ export async function updateMyGranja(
     if (granja.egg_sale_price !== undefined) mediumUpdate.egg_sale_price = granja.egg_sale_price;
     if (granja.bird_sale_price !== undefined) mediumUpdate.bird_sale_price = granja.bird_sale_price;
     if (granja.litter_sale_price !== undefined) mediumUpdate.litter_sale_price = granja.litter_sale_price;
-
-    console.log('[updateMyGranja] Tentando com payload médio:', mediumUpdate);
     const { data, error } = await sb
       .from('granjas')
       .update(mediumUpdate)
@@ -1089,7 +1091,6 @@ export async function updateMyGranja(
       .single();
 
     if (!error) {
-      console.log('[updateMyGranja] Sucesso com payload médio!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -1107,8 +1108,6 @@ export async function updateMyGranja(
     if (granja.state !== undefined) minimalUpdate.state = granja.state;
     if (granja.city !== undefined) minimalUpdate.city = granja.city;
     if (granja.bird_count !== undefined) minimalUpdate.bird_count = granja.bird_count;
-
-    console.log('[updateMyGranja] Tentando com payload mínimo:', minimalUpdate);
     const { data, error } = await sb
       .from('granjas')
       .update(minimalUpdate)
@@ -1118,7 +1117,6 @@ export async function updateMyGranja(
       .single();
 
     if (!error) {
-      console.log('[updateMyGranja] Sucesso com payload mínimo!');
       return fillMissingGranjaFields({
         ...data,
         ...granja,
@@ -1146,32 +1144,21 @@ export async function updateMyGranjaAutoBackupSettings(
   if (userError) throw userError;
   if (!userData.user) throw new Error('Usuário não autenticado.');
 
-  try {
-    // Only try to update the bird count first
-    const { data, error } = await sb
-      .from('granjas')
-      .update({}) // just a placeholder to avoid errors
-      .eq('id', granjaId)
-      .eq('user_id', userData.user.id)
-      .select('*')
-      .single();
-      
-    if (!error && data) {
-      return fillMissingGranjaFields({
-        ...data,
-        ...settings,
-      });
-    }
-  } catch (e) {
-    console.warn('Updating backup settings failed, returning mock...');
-  }
+  const { data, error } = await sb
+    .from('granjas')
+    .update({
+      auto_backup_enabled: settings.auto_backup_enabled,
+      auto_backup_frequency: settings.auto_backup_frequency,
+      auto_backup_last_run_at: settings.auto_backup_last_run_at,
+      auto_backup_keep_count: settings.auto_backup_keep_count,
+    })
+    .eq('id', granjaId)
+    .eq('user_id', userData.user.id)
+    .select('*')
+    .single();
 
-  // If all fails, return a mock
-  return fillMissingGranjaFields({
-    id: granjaId,
-    user_id: userData.user.id,
-    ...settings,
-  });
+  if (error) throw error;
+  return fillMissingGranjaFields(data as SupabaseGranjaRow);
 }
 
 export async function updateMyGranjaBirdCount(granjaId: string, birdCount: number) {
@@ -1209,8 +1196,6 @@ export async function getMyLatestGranja() {
   if (userError) return null;
   if (!userData.user) return null;
 
-  console.log('[getMyLatestGranja] Buscando granja para usuário:', userData.user.id);
-
   // Tenta várias abordagens para carregar a granja REAL do banco de dados
   // 1. Tenta com todas as colunas
   try {
@@ -1223,7 +1208,6 @@ export async function getMyLatestGranja() {
       .maybeSingle();
 
     if (!error && data) {
-      console.log('[getMyLatestGranja] Sucesso com todas as colunas!', data);
       return fillMissingGranjaFields(data);
     }
     if (error) console.warn('[getMyLatestGranja] Erro com todas as colunas:', error);
@@ -1242,7 +1226,6 @@ export async function getMyLatestGranja() {
       .maybeSingle();
 
     if (!error && data) {
-      console.log('[getMyLatestGranja] Sucesso com colunas básicas!', data);
       return fillMissingGranjaFields(data);
     }
     if (error) console.warn('[getMyLatestGranja] Erro com colunas básicas:', error);
@@ -1261,7 +1244,6 @@ export async function getMyLatestGranja() {
       .maybeSingle();
 
     if (!error && data) {
-      console.log('[getMyLatestGranja] Sucesso com colunas mínimas!', data);
       // Pega os dados do localStorage para completar
       const savedState = localStorage.getItem('granjadebolso_onboarding_state');
       if (savedState) {
@@ -1305,19 +1287,16 @@ export async function getMyLatestGranja() {
   } catch (e) {
     console.warn('[getMyLatestGranja] Exceção com colunas mínimas:', e);
   }
-
-  console.log('[getMyLatestGranja] Nenhuma granja encontrada no banco de dados!');
   return null;
 }
 
 export async function listMyAnimals() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('animais')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('animais').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -1360,12 +1339,11 @@ export async function deleteMyAnimal(id: string) {
 
 export async function listMyClients() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('clientes')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('clientes').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -1403,12 +1381,11 @@ export async function deleteMyClient(id: string) {
 
 export async function listMySuppliers() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('fornecedores')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('fornecedores').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -1452,12 +1429,11 @@ export async function deleteMySupplier(id: string) {
 
 export async function listMyPurchases() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('compras')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('compras').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('purchase_date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1505,12 +1481,11 @@ export async function deleteMyPurchase(id: string) {
 
 export async function listMyGalpoes() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('galpoes')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('galpoes').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -1547,12 +1522,11 @@ export async function deleteMyGalpao(id: string) {
 
 export async function listMyHealthProfessionals() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('profissionais_saude')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('profissionais_saude').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -1595,12 +1569,11 @@ export async function deleteMyHealthProfessional(id: string) {
 
 export async function listMyHealthRecords() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('saude_registros')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('saude_registros').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('occurred_at', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1651,12 +1624,11 @@ export async function deleteMyHealthRecord(id: string) {
 
 export async function listMyVeterinaryStock() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('estoque_veterinario')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('estoque_veterinario').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('expiration_date', { ascending: true })
     .order('created_at', { ascending: false });
 
@@ -1703,12 +1675,11 @@ export async function deleteMyVeterinaryStock(id: string) {
 
 export async function listMyMortalityRecords() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('mortalidade_registros')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('mortalidade_registros').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1732,14 +1703,11 @@ export async function upsertMyMortalityRecord(record: MortalityRecord) {
     responsible_professional_id: record.responsibleProfessionalId || null,
     cause_status: record.causeStatus || null,
   };
-
-  console.log('Enviando para supabase:', { payload, userId, granjaId });
   const { data, error } = await sb.from('mortalidade_registros').upsert(payload).select('*').single();
   if (error) {
     console.error('Erro ao enviar para supabase:', error);
     throw error;
   }
-  console.log('Resposta do supabase:', data);
   return mapMortalityRow(data as SupabaseMortalityRow);
 }
 
@@ -1757,12 +1725,11 @@ export async function deleteMyMortalityRecord(id: string) {
 
 export async function listMyManejoRecords() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('manejo_registros')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('manejo_registros').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1815,12 +1782,11 @@ export async function deleteMyManejoRecord(id: string) {
 
 export async function listMyDisponibilidadeVenda() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('disponibilidade_venda')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('disponibilidade_venda').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1861,12 +1827,11 @@ export async function deleteMyDisponibilidadeVenda(id: string) {
 
 export async function listMyVendas() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  const { data, error } = await sb
-    .from('vendas')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('granja_id', granjaId)
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('vendas').select('*').eq('user_id', userId),
+    granjaId,
+  )
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -1911,30 +1876,11 @@ export async function deleteMyVenda(id: string) {
 
 export async function listMyIngredients() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  
-  // Primeiro tenta com granja_id
-  try {
-    const { data, error } = await sb
-      .from('ingredientes')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('granja_id', granjaId)
-      .order('created_at', { ascending: false });
-    
-    if (!error) {
-      return (data || []).map((row) => mapIngredientRow(row as SupabaseIngredientRow));
-    }
-  } catch (e) {
-    console.warn('[DEBUG] Erro ao carregar ingredientes com granja_id:', e);
-  }
-  
-  // Se falhar, tenta sem granja_id
-  const { data, error } = await sb
-    .from('ingredientes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('ingredientes').select('*').eq('user_id', userId),
+    granjaId,
+  ).order('created_at', { ascending: false });
 
   if (error) {
     console.warn('Tabela ingredientes não encontrada ou erro ao carregar:', error);
@@ -1944,10 +1890,8 @@ export async function listMyIngredients() {
 }
 
 export async function upsertMyIngredient(record: IngredientRecord) {
-  console.log('[DEBUG] upsertMyIngredient INICIADO com:', record);
   const sb = requireSupabase();
   const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  console.log('[DEBUG] Autenticação OK! userId:', userId, 'granjaId:', granjaId);
   
   // Primeiro, verifica quais colunas existem
   const existingColumns = new Set<string>();
@@ -2028,18 +1972,13 @@ export async function upsertMyIngredient(record: IngredientRecord) {
     payload.user_editable = record.userEditable;
   }
   
-  console.log('[DEBUG] Tentando payload:', payload);
-  
   const { data, error } = await sb.from('ingredientes').upsert(payload).select('*').single();
   
   if (error) {
     console.error('[DEBUG] ERRO NO SUPABASE AO UPSERT:', error);
     throw error;
   }
-  
-  console.log('[DEBUG] SUCESSO! Dados retornados do Supabase:', data);
   const mapped = mapIngredientRow(data as any);
-  console.log('[DEBUG] Dados mapeados:', mapped);
   return mapped;
 }
 
@@ -2070,46 +2009,16 @@ export async function deleteMyIngredient(id: string) {
 
 export async function listMyFormulacoes() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  
-  // Primeiro tenta com granja_id
-  try {
-    // Primeiro teste: pegar uma linha para ver colunas disponíveis
-    let selectQuery = sb.from('formulacoes').select('*');
-    const { data: testData, error: testError } = await selectQuery.limit(1);
-    if (testError) {
-      console.warn('[DEBUG] Erro ao testar colunas formulacoes:', testError);
-    } else {
-      console.log('[DEBUG] Colunas disponíveis em formulacoes (teste):', testData && testData[0] ? Object.keys(testData[0]) : []);
-    }
-
-    const { data, error } = await sb
-      .from('formulacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('granja_id', granjaId)
-      .order('created_at', { ascending: false });
-    
-    if (!error) {
-      console.log('[DEBUG] listMyFormulacoes (com granja_id) dados brutos:', data);
-      return (data || []).map((row) => mapFormulationRow(row as SupabaseFormulationRow));
-    }
-  } catch (e) {
-    console.warn('[DEBUG] Erro ao carregar formulações com granja_id:', e);
-  }
-  
-  // Se falhar, tenta sem granja_id
-  const { data, error } = await sb
-    .from('formulacoes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('formulacoes').select('*').eq('user_id', userId),
+    granjaId,
+  ).order('created_at', { ascending: false });
 
   if (error) {
     console.warn('Tabela formulacoes não encontrada ou erro ao carregar:', error);
     return [];
   }
-  console.log('[DEBUG] listMyFormulacoes (sem granja_id) dados brutos:', data);
   return (data || []).map((row) => mapFormulationRow(row as SupabaseFormulationRow));
 }
 
@@ -2132,7 +2041,6 @@ export async function upsertMyFormulacao(record: FormulationRecord) {
     const { data: testData, error: testError } = await sb.from('formulacoes').select('animal_id').limit(1);
     if (!testError) {
       hasAnimalIdColumn = true;
-      console.log('[DEBUG] Coluna animal_id existe!');
     } else {
       console.warn('[DEBUG] Coluna animal_id NÃO existe:', testError);
     }
@@ -2151,11 +2059,8 @@ export async function upsertMyFormulacao(record: FormulationRecord) {
       payload.granja_id = granjaId;
     }
   } catch (e) {}
-  
-  console.log('[DEBUG] upsertMyFormulacao payload final:', payload);
   const { data, error } = await sb.from('formulacoes').upsert(payload).select('*').single();
   if (error) throw error;
-  console.log('[DEBUG] upsertMyFormulacao resultado:', data);
   return mapFormulationRow(data as SupabaseFormulationRow);
 }
 
@@ -2184,30 +2089,11 @@ export async function deleteMyFormulacao(id: string) {
 
 export async function listMyFormulatedFeedStock() {
   const sb = requireSupabase();
-  const { userId, granjaId } = await getAuthenticatedUserAndGranja();
-  
-  // Primeiro tenta com granja_id
-  try {
-    const { data, error } = await sb
-      .from('estoque_racao_formulada')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('granja_id', granjaId)
-      .order('produced_at', { ascending: false });
-    
-    if (!error) {
-      return (data || []).map((row) => mapFormulatedFeedStockRow(row as SupabaseFormulatedFeedStockRow));
-    }
-  } catch (e) {
-    console.warn('[DEBUG] Erro ao carregar estoque com granja_id:', e);
-  }
-  
-  // Se falhar, tenta sem granja_id
-  const { data, error } = await sb
-    .from('estoque_racao_formulada')
-    .select('*')
-    .eq('user_id', userId)
-    .order('produced_at', { ascending: false });
+  const { userId, granjaId } = await getAuthenticatedUserAndGranja(false);
+  const { data, error } = await applyGranjaScope(
+    sb.from('estoque_racao_formulada').select('*').eq('user_id', userId),
+    granjaId,
+  ).order('produced_at', { ascending: false });
 
   if (error) {
     console.warn('Tabela estoque_racao_formulada não encontrada ou erro ao carregar:', error);
@@ -2705,30 +2591,23 @@ export async function restoreMyBackupSnapshot(snapshot: BackupSnapshot) {
       .filter(
         (record) =>
           availableAnimalIds.has(record.animalId) &&
-          availableGalpaoIds.has(record.galpaoId) &&
-          availableProfessionalIds.has(record.responsibleProfessionalId),
+          (!record.galpaoId || availableGalpaoIds.has(record.galpaoId)) &&
+          (!record.responsibleProfessionalId || availableProfessionalIds.has(record.responsibleProfessionalId)),
       )
       .map((record) => ({
         id: record.id,
         user_id: userId,
         granja_id: granjaId,
-        occurred_at: record.occurredAt,
-        galpao_id: record.galpaoId,
+        date: record.date,
+        galpao_id: record.galpaoId || null,
         animal_id: record.animalId,
-        responsible_professional_id: record.responsibleProfessionalId,
+        responsible_professional_id: record.responsibleProfessionalId || null,
         dead_count: record.deadCount,
         cause_status: record.causeStatus,
         cause: record.cause,
         notes: record.notes,
-        attachments: record.attachments.map((attachment) => ({
-          id: attachment.id,
-          file_name: attachment.fileName,
-          mime_type: attachment.mimeType,
-          size_in_bytes: attachment.sizeInBytes,
-          data_url: attachment.dataUrl,
-          uploaded_at: attachment.uploadedAt,
-        })),
         created_at: record.createdAt,
+        updated_at: record.updatedAt,
       }));
 
     if (mortalityPayload.length > 0) {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { 
   Calculator, 
   Wheat, 
@@ -292,8 +292,6 @@ export default function FormulacaoPage({
       alert('A soma dos ingredientes deve ser exatamente 100%.');
       return;
     }
-
-    console.log('[DEBUG] FormulacaoPage handleSaveFormulation - selectedLotId:', selectedLotId);
     const payload: FormulationRecord = {
       ...formulationDraft,
       phase: currentPhase,
@@ -303,7 +301,6 @@ export default function FormulacaoPage({
         ? formulations.find(f => f.id === editingFormulationId)?.createdAt ?? new Date().toISOString() 
         : new Date().toISOString()
     };
-    console.log('[DEBUG] FormulacaoPage handleSaveFormulation - payload completo:', payload);
     
     onSaveFormulation(payload);
     

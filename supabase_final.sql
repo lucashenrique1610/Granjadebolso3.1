@@ -1,5 +1,9 @@
 -- Script SQL para configuração completa do banco de dados no Supabase
 -- Este script é idempotente (pode ser executado várias vezes sem problemas)
+--
+-- Após executar este arquivo, rode também supabase_migrate.sql para colunas
+-- adicionais usadas pelo app (phone, formulation_id, ingredientes extras, etc.).
+-- NÃO use supabase_v2.sql — schema antigo incompatível com o frontend.
 
 -- =====================================================
 -- PASSO 1: DROP TABELAS EM ORDEM REVERSA DE DEPENDÊNCIA

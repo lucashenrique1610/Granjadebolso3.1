@@ -5,11 +5,12 @@
 
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, User, Mail, Phone, Lock, Eye, EyeOff, ShieldCheck, Check, Info } from 'lucide-react';
-import { UserPersonalData } from '@/types';
+import { validatePasswordPolicy } from '@/lib/passwordSecurity';
+import { RegistrationCredentials, UserPersonalData } from '@/types';
 
 interface StepPersonalDataProps {
   initialData: UserPersonalData;
-  onNext: (data: UserPersonalData) => void;
+  onNext: (data: UserPersonalData, credentials: RegistrationCredentials) => void;
   onBack: () => void;
 }
 
@@ -21,8 +22,8 @@ export default function StepPersonalData({
   const [fullName, setFullName] = useState(initialData.fullName);
   const [email, setEmail] = useState(initialData.email);
   const [phone, setPhone] = useState(initialData.phone);
-  const [password, setPassword] = useState(initialData.password || '');
-  const [confirmPassword, setConfirmPassword] = useState(initialData.password || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
@@ -58,24 +59,16 @@ export default function StepPersonalData({
     }
   };
 
-  // Strong password checks
-  const checks = {
-    length: password.length >= 8,
-    upper: /[A-Z]/.test(password),
-    lower: /[a-z]/.test(password),
-    number: /[0-9]/.test(password),
-    special: /[^A-Za-z0-9]/.test(password),
-  };
-
-  const strengthCount = Object.values(checks).filter(Boolean).length;
-  const isStrong = strengthCount === 5;
+  const passwordPolicy = validatePasswordPolicy(password, { fullName, email, phone });
+  const passedCheckCount = passwordPolicy.checks.filter((check) => check.passed).length;
+  const isStrong = passwordPolicy.isValid;
 
   const getStrengthLabel = () => {
-    if (password.length === 0) return { label: 'Não informada', color: 'text-gray-400', barColor: 'bg-gray-200', width: 'w-0' };
-    if (strengthCount <= 2) return { label: 'Senha Fraca', color: 'text-red-500', barColor: 'bg-red-500', width: 'w-1/4' };
-    if (strengthCount === 3) return { label: 'Senha Mediana', color: 'text-amber-500', barColor: 'bg-amber-500', width: 'w-2/4' };
-    if (strengthCount === 4) return { label: 'Senha Boa (Falta pouco!)', color: 'text-blue-500', barColor: 'bg-blue-500', width: 'w-3/4' };
-    return { label: 'Senha Forte (Excelente)', color: 'text-green-600 font-bold', barColor: 'bg-green-500', width: 'w-full' };
+    if (password.length === 0) return { label: 'Nao informada', color: 'text-gray-400', barColor: 'bg-gray-200', width: 'w-0' };
+    if (passedCheckCount <= 3) return { label: 'Senha Fraca', color: 'text-red-500', barColor: 'bg-red-500', width: 'w-1/4' };
+    if (passedCheckCount <= 5) return { label: 'Senha Mediana', color: 'text-amber-500', barColor: 'bg-amber-500', width: 'w-2/4' };
+    if (!isStrong) return { label: 'Senha Boa', color: 'text-blue-500', barColor: 'bg-blue-500', width: 'w-3/4' };
+    return { label: 'Senha Forte', color: 'text-green-600 font-bold', barColor: 'bg-green-500', width: 'w-full' };
   };
 
   const strengthStatus = getStrengthLabel();
@@ -100,7 +93,7 @@ export default function StepPersonalData({
       return;
     }
     if (!isStrong) {
-      alert('Sua senha não atende aos requisitos de segurança. Certifique-se de preencher todos os 5 critérios de senha forte antes de prosseguir.');
+      alert(`Sua senha nao atende aos requisitos: ${passwordPolicy.messages.join(', ')}.`);
       setShowStrengthGuidelines(true);
       return;
     }
@@ -109,7 +102,7 @@ export default function StepPersonalData({
       return;
     }
     
-    onNext({ fullName, email, phone, password });
+    onNext({ fullName: fullName.trim(), email: email.trim().toLowerCase(), phone }, { password });
   };
 
   return (
@@ -165,6 +158,7 @@ export default function StepPersonalData({
                 id="fullName"
                 name="fullName"
                 type="text"
+                autoComplete="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Digite seu nome completo"
@@ -185,6 +179,7 @@ export default function StepPersonalData({
                 id="email"
                 name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={handleEmailBlur}
@@ -213,6 +208,7 @@ export default function StepPersonalData({
                 id="phone"
                 name="phone"
                 type="tel"
+                autoComplete="tel"
                 value={phone}
                 onChange={handlePhoneChange}
                 placeholder="(00) 00000-0000"
@@ -246,9 +242,10 @@ export default function StepPersonalData({
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 8 caracteres com símbolos"
+                  placeholder="Minimo 12 caracteres com simbolos"
                   required
                   className="w-full h-12 bg-white border border-gray-300 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none pl-12 pr-12 text-sm text-[#0f1c2b] transition-all rounded-full"
                 />
@@ -293,53 +290,18 @@ export default function StepPersonalData({
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checks.length ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
-                    <Check className="w-3 h-3 stroke-[3]" />
+                {passwordPolicy.checks.map((check) => (
+                  <div key={check.id} className={`flex items-center gap-2 ${check.id === 'notPersonal' ? 'sm:col-span-2' : ''}`}>
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${check.passed ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                    <span className={`text-[11px] font-semibold ${check.passed ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
+                      {check.label}
+                    </span>
                   </div>
-                  <span className={`text-[11px] font-semibold ${checks.length ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
-                    No mínimo 8 caracteres
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checks.upper ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span className={`text-[11px] font-semibold ${checks.upper ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
-                    Uma letra MAIÚSCULA
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checks.lower ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span className={`text-[11px] font-semibold ${checks.lower ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
-                    Uma letra minúscula
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checks.number ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span className={`text-[11px] font-semibold ${checks.number ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
-                    Pelo menos um número
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 sm:col-span-2">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checks.special ? 'bg-green-100 border-green-300 text-green-700' : 'bg-slate-100 border-gray-300 text-gray-300'}`}>
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span className={`text-[11px] font-semibold ${checks.special ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
-                    Símbolo especial (!@#$%^&* ou outros)
-                  </span>
-                </div>
+                ))}
               </div>
             </div>
-
             {/* Confirm Password input */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-[#0f1c2b] tracking-wide" htmlFor="confirmPassword">
@@ -351,6 +313,7 @@ export default function StepPersonalData({
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita sua senha"

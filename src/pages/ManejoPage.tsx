@@ -63,6 +63,7 @@ import {
   getBirdAgeInDays,
   getPhaseByAge,
 } from '@/lib/manejo';
+import { exportRowsToExcel, exportRowsToPdf } from '@/lib/exportUtils';
 
 export type ManejoSection = 'registro' | 'disponibilidade' | 'historico' | 'recomendacoes' | 'saude' | 'mortalidade';
 
@@ -252,16 +253,6 @@ function matchesDateRange(value: string, from: string, to: string) {
   return true;
 }
 
-function downloadFile(fileName: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function getLotesFromGalpao(galpao: GalpaoRecord) {
   try {
     const parsed = JSON.parse(galpao.notes);
@@ -280,73 +271,6 @@ function findGalpaoForAnimal(animalId: string, galpoes: GalpaoRecord[]) {
     return lotes.some((lote) => lote.id === animalId);
   });
 }
-
-function exportRowsToExcel(fileName: string, headers: string[], rows: string[][]) {
-  const table = `
-    <table>
-      <thead>
-        <tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr>
-      </thead>
-      <tbody>
-        ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}
-      </tbody>
-    </table>
-  `;
-
-  const html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body { font-family: Arial, sans-serif; padding: 16px; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
-          th { background: #eff6ff; }
-        </style>
-      </head>
-      <body>${table}</body>
-    </html>
-  `;
-
-  downloadFile(`${fileName}.xls`, html, 'application/vnd.ms-excel;charset=utf-8;');
-}
-
-function exportRowsToPdf(title: string, headers: string[], rows: string[][]) {
-  const popup = window.open('', '_blank', 'width=1200,height=800');
-  if (!popup) {
-    window.alert('Não foi possível abrir a janela de impressão para gerar o PDF.');
-    return;
-  }
-
-  popup.document.write(`
-    <html>
-      <head>
-        <title>${title}</title>
-        <meta charset="utf-8" />
-        <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
-          h1 { font-size: 22px; margin-bottom: 8px; }
-          p { color: #6b7280; margin-bottom: 24px; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
-          th { background: #eff6ff; }
-        </style>
-      </head>
-      <body>
-        <h1>${title}</h1>
-        <p>Exportado em ${new Date().toLocaleString('pt-BR')}</p>
-        <table>
-          <thead><tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr></thead>
-          <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>
-      </body>
-    </html>
-  `);
-  popup.document.close();
-  popup.focus();
-  popup.print();
-}
-
 async function readAttachments(files: FileList | null): Promise<MortalityAttachment[]> {
   if (!files || files.length === 0) return [];
 
@@ -421,6 +345,7 @@ export default function ManejoPage({
   const [editingProfessionalId, setEditingProfessionalId] = useState<string | null>(null);
   const [professionalDraft, setProfessionalDraft] = useState<Omit<HealthProfessionalRecord, 'id' | 'createdAt'>>(emptyProfessionalDraft);
 
+  const [isHealthFormOpen, setIsHealthFormOpen] = useState(false);
   const [editingHealthId, setEditingHealthId] = useState<string | null>(null);
   const [healthDraft, setHealthDraft] = useState<Omit<HealthRecord, 'id' | 'createdAt'>>(emptyHealthDraft);
 
@@ -964,8 +889,6 @@ export default function ManejoPage({
           ? mortalityRecords.find((item) => item.id === editingMortalityId)?.createdAt ?? new Date().toISOString()
           : new Date().toISOString(),
     };
-
-    console.log('Registro de mortalidade para salvar:', recordToSave);
     await onSaveMortalityRecord(recordToSave);
     resetMortalityForm();
   };
@@ -1139,20 +1062,15 @@ export default function ManejoPage({
                     value={manejoDraft.animalId}
                     onChange={(e) => {
                       const selectedAnimalId = e.target.value;
-                      console.log('[DEBUG] ManejoPage - selectedAnimalId:', selectedAnimalId);
                       const selectedAnimal = animals.find((a) => a.id === selectedAnimalId);
-                      console.log('[DEBUG] ManejoPage - selectedAnimal:', selectedAnimal);
-                      console.log('[DEBUG] ManejoPage - formulations array completo:', JSON.stringify(formulations, null, 2));
                       
                       // Lógica de correspondência mais robusta
                       const matchingFormulation = formulations.find((f) => {
-                        console.log('[DEBUG] ManejoPage - verificando formulação:', f.id, 'animalId:', f.animalId);
                         // Converte para string e remove espaços em branco
                         const fAnimalId = String(f.animalId || '').trim();
                         const sAnimalId = String(selectedAnimalId || '').trim();
                         return fAnimalId === sAnimalId && fAnimalId !== '';
                       });
-                      console.log('[DEBUG] ManejoPage - matchingFormulation:', matchingFormulation);
                       
                       let recommendedRacaoKg = 0;
                       if (selectedAnimal) {
@@ -1161,7 +1079,6 @@ export default function ManejoPage({
                         const birdCount = getAnimalCurrentQuantity(selectedAnimal);
                         const consumptionPerBirdG = NUTRITIONAL_TARGETS[phase].consumption;
                         recommendedRacaoKg = (consumptionPerBirdG * birdCount) / 1000;
-                        console.log('[DEBUG] ManejoPage - calculando ração recomendada:', { ageDays, phase, birdCount, consumptionPerBirdG, recommendedRacaoKg });
                       }
                       setManejoDraft((prev) => ({
                         ...prev,
@@ -1701,29 +1618,158 @@ export default function ManejoPage({
 
       {activeSection === 'saude' && (
         <>
-          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="app-section-card">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <HeartPulse className="h-5 w-5 text-brand-primary" />
-                    <h2 className="text-lg font-extrabold text-[#0f1c2b]">Registro de intervenções veterinárias</h2>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-500">Registre consultas, tratamentos, vacinas e medicamentos com vínculo a lote, galpão e profissional autorizado.</p>
+          {/* Caderneta de Saúde (Calendário e Lembretes) */}
+          <section className="grid gap-6 mb-6">
+            <div className="app-section-card relative overflow-hidden border-0 bg-white ring-1 ring-gray-200">
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-brand-primary opacity-5 blur-3xl" />
+              
+              <div className="relative flex items-center gap-3 border-b border-gray-100 pb-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-primary to-brand-active text-white shadow-lg shadow-brand-primary/30">
+                  <Calendar className="h-5 w-5" />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => exportRowsToExcel('saude-relatorio', ['Data/Hora', 'Procedimento', 'Lote', 'Galpão', 'Profissional', 'Título', 'Doença', 'Aves afetadas', 'Custo', 'Status'], healthExportRows)} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-slate-50">
-                    <FileDown className="h-4 w-4" />
-                    Excel
-                  </button>
-                  <button type="button" onClick={() => exportRowsToPdf('Relatório de Saúde', ['Data/Hora', 'Procedimento', 'Lote', 'Galpão', 'Profissional', 'Título', 'Doença', 'Aves afetadas', 'Custo', 'Status'], healthExportRows)} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-slate-50">
-                    <FileDown className="h-4 w-4" />
-                    PDF
-                  </button>
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#0f1c2b]">Caderneta de Saúde</h2>
+                  <p className="text-xs font-medium text-gray-500">Calendário de vacinação sugerido e lembretes de tratamentos ativos</p>
                 </div>
               </div>
 
-              <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={handleSaveHealth}>
+              <div className="relative mt-6 grid gap-4 lg:grid-cols-2">
+                {/* Lotes em Tratamento Contínuo */}
+                <div className="rounded-2xl border border-brand-primary/20 bg-brand-main p-4">
+                  <div className="flex items-center gap-2 font-extrabold text-brand-active mb-4">
+                    <Activity className="h-4 w-4" />
+                    Lotes em Tratamento Contínuo
+                  </div>
+                  <div className="space-y-3">
+                    {healthRecords.filter((r) => r.recoveryStatus === 'em_tratamento').length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500">
+                        Nenhum lote em tratamento no momento.
+                      </div>
+                    ) : (
+                      healthRecords
+                        .filter((r) => r.recoveryStatus === 'em_tratamento')
+                        .map((r) => (
+                          <div key={r.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5">
+                            <div>
+                              <span className="block text-sm font-bold text-[#0f1c2b]">
+                                {animalMap.get(r.animalId)?.tag || 'Lote Removido'}
+                              </span>
+                              <span className="block text-xs font-medium text-gray-500 truncate max-w-[200px]">
+                                {r.title}
+                              </span>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-brand-primary/10 px-2 py-1 text-[10px] font-bold text-brand-active">
+                              EM CURSO
+                            </span>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Previsão de Vacinação Padrão */}
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                  <div className="flex items-center gap-2 font-extrabold text-emerald-800 mb-4">
+                    <ShieldCheck className="h-4 w-4" />
+                    Calendário de Vacinação Padrão (Sugestão)
+                  </div>
+                  <div className="space-y-3">
+                    {animals.filter((a) => ['ativo', 'quarentena'].includes(a.status)).length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-emerald-200 p-4 text-center text-sm text-emerald-600/70">
+                        Nenhum lote ativo para vacinação.
+                      </div>
+                    ) : (
+                      animals
+                        .filter((a) => ['ativo', 'quarentena'].includes(a.status))
+                        .map((animal) => {
+                          const ageDays = getBirdAgeInDays(animal.birthDate);
+                          // Regra simplificada de vacinação: Marek (1d), Gumboro (14d), Newcastle (21d), Bouba (28d)
+                          const vaccines = [
+                            { name: 'Marek / Bouba', day: 1 },
+                            { name: 'Gumboro', day: 14 },
+                            { name: 'Newcastle / Bronquite', day: 21 },
+                            { name: 'Bouba Aviária (reforço)', day: 28 },
+                            { name: 'Coriza / Salmonella', day: 42 },
+                          ];
+                          const pending = vaccines.find((v) => ageDays <= v.day);
+                          if (!pending) return null;
+
+                          return (
+                            <div key={animal.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5">
+                              <div>
+                                <span className="block text-sm font-bold text-[#0f1c2b]">{animal.tag}</span>
+                                <span className="block text-xs font-medium text-gray-500">Idade atual: {ageDays} dias</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="block text-sm font-extrabold text-emerald-600">{pending.name}</span>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em]">
+                                  SUGERIDO DIA {pending.day}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Indicadores sanitários (Moved to Top) */}
+          <section className="grid gap-6 mb-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Incidências</div>
+                <div className="mt-1 text-2xl font-extrabold text-[#0f1c2b]">{filteredHealthRecords.length}</div>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Recuperação</div>
+                <div className="mt-1 text-2xl font-extrabold text-[#0f1c2b]">{healthReport.recoveryRatePercent.toFixed(1)}%</div>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Custos Saúde</div>
+                <div className="mt-1 text-2xl font-extrabold text-[#0f1c2b]">{currencyFormatter.format(healthReport.totalCost)}</div>
+              </div>
+              <div className={`rounded-2xl border shadow-sm p-4 flex flex-col justify-center ${authorizedProfessionals.length === 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}>
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Permissões</div>
+                <div className="mt-1 text-sm font-bold text-[#0f1c2b]">
+                  {authorizedProfessionals.length === 0
+                    ? 'Nenhum prof. autorizado'
+                    : `${authorizedProfessionals.length} prof. apto(s)`}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="app-section-card flex flex-col h-full">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-5 mb-5">
+                <div className="flex items-center gap-3">
+                  <HeartPulse className="h-5 w-5 text-brand-primary" />
+                  <h2 className="text-lg font-extrabold text-[#0f1c2b]">Histórico Médico</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => exportRowsToPdf('Relatório de Saúde', ['Data/Hora', 'Procedimento', 'Lote', 'Galpão', 'Profissional', 'Título', 'Doença', 'Aves afetadas', 'Custo', 'Status'], healthExportRows)} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-slate-50">
+                    <FileDown className="h-3 w-3" /> PDF
+                  </button>
+                  <button type="button" onClick={() => {
+                    setIsHealthFormOpen(!isHealthFormOpen);
+                    if (editingHealthId) resetHealthForm();
+                  }} className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-hover">
+                    {isHealthFormOpen && !editingHealthId ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                    {isHealthFormOpen && !editingHealthId ? 'Cancelar' : 'Nova Intervenção'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Form is collapsible */}
+              {isHealthFormOpen && (
+                <div className="mb-6 rounded-2xl border border-brand-primary/10 bg-brand-main/30 p-5 shadow-inner ring-1 ring-brand-primary/20">
+                  <h3 className="text-sm font-bold text-[#0f1c2b] mb-4">
+                    {editingHealthId ? 'Editar Intervenção' : 'Registrar Nova Intervenção'}
+                  </h3>
+                  <form className="grid gap-4 md:grid-cols-2" onSubmit={(e) => { handleSaveHealth(e); setIsHealthFormOpen(false); }}>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Data e hora</span>
                   <input type="datetime-local" value={healthDraft.occurredAt} onChange={(event) => setHealthDraft((prev) => ({ ...prev, occurredAt: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
@@ -1857,115 +1903,17 @@ export default function ManejoPage({
                     {editingHealthId ? 'Atualizar intervenção' : 'Salvar intervenção'}
                   </button>
                   {editingHealthId && (
-                    <button type="button" onClick={resetHealthForm} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-slate-50">
+                    <button type="button" onClick={() => { resetHealthForm(); setIsHealthFormOpen(false); }} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-slate-50">
                       <X className="h-4 w-4" />
                       Cancelar
                     </button>
                   )}
                 </div>
-              </form>
-            </div>
-
-            <div className="space-y-6">
-              <div className="app-section-card">
-                <h2 className="text-lg font-extrabold text-[#0f1c2b]">Indicadores sanitários</h2>
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Incidência analisada</div>
-                    <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{filteredHealthRecords.length}</div>
-                    <div className="mt-1 text-sm text-gray-500">Registros dentro dos filtros selecionados</div>
-                  </div>
-                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Taxa de recuperação</div>
-                    <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{healthReport.recoveryRatePercent.toFixed(1)}%</div>
-                    <div className="mt-1 text-sm text-gray-500">Com base nas intervenções registradas</div>
-                  </div>
-                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Custos com saúde</div>
-                    <div className="mt-2 text-2xl font-extrabold text-[#0f1c2b]">{currencyFormatter.format(healthReport.totalCost)}</div>
-                    <div className="mt-1 text-sm text-gray-500">Por lote e galpão conforme o relatório</div>
-                  </div>
-                  <div className={`rounded-2xl border p-4 ${authorizedProfessionals.length === 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}>
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Permissões</div>
-                    <div className="mt-2 text-sm font-bold text-[#0f1c2b]">
-                      {authorizedProfessionals.length === 0
-                        ? 'Nenhum profissional autorizado para lançar registros'
-                        : `${authorizedProfessionals.length} profissional(is) apto(s) para registro`}
-                    </div>
-                  </div>
+                  </form>
                 </div>
-              </div>
+              )}
 
-              <div className="app-section-card">
-                <h2 className="text-lg font-extrabold text-[#0f1c2b]">Filtros avançados</h2>
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Busca</span>
-                    <input value={healthSearch} onChange={(event) => setHealthSearch(event.target.value)} placeholder="Buscar por procedimento, doença, profissional ou lote" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Lote</span>
-                    <select value={healthFilters.animalId} onChange={(event) => setHealthFilters((prev) => ({ ...prev, animalId: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      <option value="">Todos</option>
-                      {animals.map((animal) => (
-                        <option key={animal.id} value={animal.id}>
-                          {getAnimalLabel(animal)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Galpão</span>
-                    <select value={healthFilters.galpaoId} onChange={(event) => setHealthFilters((prev) => ({ ...prev, galpaoId: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      <option value="">Todos</option>
-                      {galpoes.map((galpao) => (
-                        <option key={galpao.id} value={galpao.id}>
-                          {getGalpaoLabel(galpao)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Profissional</span>
-                    <select value={healthFilters.professionalId} onChange={(event) => setHealthFilters((prev) => ({ ...prev, professionalId: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      <option value="">Todos</option>
-                      {healthProfessionals.map((professional) => (
-                        <option key={professional.id} value={professional.id}>
-                          {professional.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Procedimento</span>
-                    <select value={healthFilters.procedureType} onChange={(event) => setHealthFilters((prev) => ({ ...prev, procedureType: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      <option value="">Todos</option>
-                      {Object.entries(HEALTH_PROCEDURE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Período inicial</span>
-                      <input type="date" value={healthFilters.from} onChange={(event) => setHealthFilters((prev) => ({ ...prev, from: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                    </label>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Período final</span>
-                      <input type="date" value={healthFilters.to} onChange={(event) => setHealthFilters((prev) => ({ ...prev, to: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-            <div className="app-section-card">
-              <h2 className="text-lg font-extrabold text-[#0f1c2b]">Histórico de saúde</h2>
-              <div className="mt-6 space-y-3">
+              <div className="mt-2 space-y-3">
                 {isLoading ? (
                   <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">Carregando registros de saúde...</div>
                 ) : filteredHealthRecords.length === 0 ? (
@@ -1988,7 +1936,7 @@ export default function ManejoPage({
                           {(record.diseaseName || record.notes) && <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm text-gray-600">{record.diseaseName ? `${record.diseaseName}. ` : ''}{record.notes}</div>}
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => { const { id, createdAt, ...rest } = record; setEditingHealthId(id); setHealthDraft(rest); }} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-white">
+                          <button type="button" onClick={() => { const { id, createdAt, ...rest } = record; setEditingHealthId(id); setHealthDraft(rest); setIsHealthFormOpen(true); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-white">
                             <Edit3 className="h-4 w-4" />
                             Editar
                           </button>
@@ -2006,120 +1954,94 @@ export default function ManejoPage({
 
             <div className="space-y-6">
               <div className="app-section-card">
-                <h2 className="text-lg font-extrabold text-[#0f1c2b]">Estoque veterinário</h2>
+                <div className="flex items-center gap-3">
+                  <Warehouse className="h-5 w-5 text-brand-primary" />
+                  <div>
+                    <h2 className="text-lg font-extrabold text-[#0f1c2b]">Estoque veterinário (Compras)</h2>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Visualização de insumos veterinários, remédios e vacinas adquiridos no módulo de Compras. Para adicionar um novo item, registre uma compra.
+                    </p>
+                  </div>
+                </div>
+
                 <label className="mt-6 flex flex-col gap-1.5">
                   <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Busca no estoque</span>
-                  <input value={stockSearch} onChange={(event) => setStockSearch(event.target.value)} placeholder="Buscar por item, lote, local ou fornecedor" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
+                  <input
+                    value={stockSearch}
+                    onChange={(event) => setStockSearch(event.target.value)}
+                    placeholder="Buscar por item, fornecedor ou finalidade"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
+                  />
                 </label>
 
-                <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={handleSaveStock}>
-                  <label className="flex flex-col gap-1.5 md:col-span-2">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Item</span>
-                    <input value={stockDraft.name} onChange={(event) => setStockDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ex: Vacina Newcastle, antibiótico, seringa" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Categoria</span>
-                    <select value={stockDraft.category} onChange={(event) => setStockDraft((prev) => ({ ...prev, category: event.target.value as VeterinaryStockCategory }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      {Object.entries(STOCK_CATEGORY_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Fornecedor</span>
-                    <select value={stockDraft.supplierId} onChange={(event) => setStockDraft((prev) => ({ ...prev, supplierId: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary">
-                      <option value="">Não vinculado</option>
-                      {suppliers.map((supplier) => (
-                        <option key={supplier.id} value={supplier.id}>
-                          {supplier.companyName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Lote do insumo</span>
-                    <input value={stockDraft.batchNumber} onChange={(event) => setStockDraft((prev) => ({ ...prev, batchNumber: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Quantidade</span>
-                    <input type="number" min={0} step={0.01} value={stockDraft.quantity} onChange={(event) => setStockDraft((prev) => ({ ...prev, quantity: Number(event.target.value || 0) }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Unidade</span>
-                    <input value={stockDraft.unit} onChange={(event) => setStockDraft((prev) => ({ ...prev, unit: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Estoque mínimo</span>
-                    <input type="number" min={0} step={0.01} value={stockDraft.minimumStock} onChange={(event) => setStockDraft((prev) => ({ ...prev, minimumStock: Number(event.target.value || 0) }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Validade</span>
-                    <input type="date" value={stockDraft.expirationDate} onChange={(event) => setStockDraft((prev) => ({ ...prev, expirationDate: event.target.value }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Custo por unidade</span>
-                    <input type="number" min={0} step={0.01} value={stockDraft.costPerUnit} onChange={(event) => setStockDraft((prev) => ({ ...prev, costPerUnit: Number(event.target.value || 0) }))} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 md:col-span-2">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Local de armazenamento</span>
-                    <input value={stockDraft.storageLocation} onChange={(event) => setStockDraft((prev) => ({ ...prev, storageLocation: event.target.value }))} placeholder="Ex: Câmara fria 1, almoxarifado central" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 md:col-span-2">
-                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Observações</span>
-                    <textarea value={stockDraft.notes} onChange={(event) => setStockDraft((prev) => ({ ...prev, notes: event.target.value }))} rows={3} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#0f1c2b] outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary" />
-                  </label>
-                  <div className="md:col-span-2 flex flex-wrap gap-3">
-                    <button type="submit" disabled={isSyncing} className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60">
-                      <Plus className="h-4 w-4" />
-                      {editingStockId ? 'Atualizar item' : 'Salvar item'}
-                    </button>
-                    {editingStockId && (
-                      <button type="button" onClick={resetStockForm} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-slate-50">
-                        <X className="h-4 w-4" />
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                </form>
-
                 <div className="mt-6 space-y-3">
-                  {filteredStockRecords.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">Nenhum item de estoque encontrado.</div>
-                  ) : (
-                    filteredStockRecords.map((item) => {
-                      const status = getVeterinaryStockStatus(item);
+                  {(() => {
+                    const vetPurchases = purchases.filter((p) => p.category === 'insumo_veterinario');
+                    const filteredVetPurchases = vetPurchases.filter((p) => {
+                      const search = stockSearch.toLowerCase().trim();
+                      if (!search) return true;
+                      const supplierName = suppliers.find((s) => s.id === p.supplierId)?.companyName || '';
                       return (
-                        <div key={item.id} className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        p.itemName.toLowerCase().includes(search) ||
+                        supplierName.toLowerCase().includes(search) ||
+                        p.veterinaryPurpose.toLowerCase().includes(search)
+                      );
+                    });
+
+                    if (filteredVetPurchases.length === 0) {
+                      return (
+                        <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500">
+                          Nenhum insumo veterinário encontrado. Registre compras no módulo de Gestão para exibi-las aqui.
+                        </div>
+                      );
+                    }
+
+                    return filteredVetPurchases.map((item) => {
+                      const supplierName = suppliers.find((s) => s.id === item.supplierId)?.companyName || 'Fornecedor não vinculado';
+                      
+                      let expirationStatus = 'Regular';
+                      let expirationColorClass = 'bg-white text-gray-700';
+                      
+                      if (item.expirationDate) {
+                        const daysToExpiration = Math.ceil((new Date(item.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                        if (daysToExpiration < 0) {
+                          expirationStatus = 'Vencido';
+                          expirationColorClass = 'bg-red-100 text-red-700';
+                        } else if (daysToExpiration <= 30) {
+                          expirationStatus = `Vence em ${daysToExpiration} dia(s)`;
+                          expirationColorClass = 'bg-amber-100 text-amber-700';
+                        }
+                      }
+
+                      return (
+                        <div key={item.id} className="rounded-2xl border border-gray-200 bg-slate-50 p-4 transition-colors hover:bg-slate-100">
+                          <div className="flex flex-col gap-3">
                             <div>
-                              <div className="text-base font-extrabold text-[#0f1c2b]">{item.name}</div>
-                              <div className="mt-1 text-sm text-gray-500">{STOCK_CATEGORY_LABELS[item.category]} • {supplierMap.get(item.supplierId) || 'Fornecedor não vinculado'}</div>
-                              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-500">
-                                <span className="rounded-full bg-white px-3 py-1">{item.quantity} {item.unit}</span>
-                                <span className="rounded-full bg-white px-3 py-1">Mínimo: {item.minimumStock}</span>
-                                {item.expirationDate && <span className="rounded-full bg-white px-3 py-1">Validade: {item.expirationDate}</span>}
-                                <span className={`rounded-full px-3 py-1 ${status.isExpired ? 'bg-red-100 text-red-700' : status.isExpiringSoon ? 'bg-amber-100 text-amber-700' : status.isLowStock ? 'bg-blue-100 text-blue-700' : 'bg-white'}`}>
-                                  {status.isExpired ? 'Vencido' : status.isExpiringSoon ? `Vence em ${status.remainingDays} dia(s)` : status.isLowStock ? 'Baixo estoque' : 'Regular'}
-                                </span>
+                              <div className="text-base font-extrabold text-[#0f1c2b]">{item.itemName}</div>
+                              <div className="mt-1 text-sm text-gray-500">
+                                Comprado em {new Date(item.purchaseDate).toLocaleDateString('pt-BR')} • {supplierName}
                               </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button type="button" onClick={() => { const { id, createdAt, ...rest } = item; setEditingStockId(id); setStockDraft(rest); }} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-white">
-                                <Edit3 className="h-4 w-4" />
-                                Editar
-                              </button>
-                              <button type="button" onClick={() => void onDeleteVeterinaryStock(item.id)} disabled={isSyncing} className="inline-flex items-center gap-2 rounded-full border border-red-300 px-4 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60">
-                                <Trash2 className="h-4 w-4" />
-                                Excluir
-                              </button>
+                              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                                <span className="rounded-full bg-white border border-gray-200 px-3 py-1 text-gray-600">
+                                  {item.quantity} {item.unit}
+                                </span>
+                                {item.veterinaryPurpose && (
+                                  <span className="rounded-full bg-white border border-gray-200 px-3 py-1 text-gray-600">
+                                    Finalidade: {item.veterinaryPurpose}
+                                  </span>
+                                )}
+                                {item.expirationDate && (
+                                  <span className={`rounded-full px-3 py-1 border border-transparent ${expirationColorClass}`}>
+                                    {expirationStatus} (Val: {new Date(item.expirationDate).toLocaleDateString('pt-BR')})
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       );
-                    })
-                  )}
+                    });
+                  })()}
                 </div>
               </div>
             </div>

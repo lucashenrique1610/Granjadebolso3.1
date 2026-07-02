@@ -34,7 +34,6 @@ export async function enqueueOperation(action: string, payload: any) {
       timestamp: Date.now(),
     });
     await set('sync_queue', queue);
-    console.log(`[Offline] Operação ${action} enfileirada.`);
   } catch (e) {
     console.error('Failed to enqueue operation:', e);
   }

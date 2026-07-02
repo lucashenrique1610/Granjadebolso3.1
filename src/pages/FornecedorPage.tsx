@@ -71,6 +71,27 @@ const columns: CadastroColumn<SupplierRecord>[] = [
   },
 ];
 
+function getSearchableText(record: SupplierRecord) {
+  return [
+    record.companyName,
+    record.contactName,
+    record.category,
+    record.phone,
+    record.email,
+    record.city,
+    record.state,
+    record.status,
+  ].join(' ');
+}
+
+function getSummary(items: SupplierRecord[]) {
+  return [
+    { label: 'Fornecedores', value: String(items.length) },
+    { label: 'Ativos', value: String(items.filter((item) => item.status === 'ativo').length) },
+    { label: 'Categorias', value: String(new Set(items.map((item) => item.category).filter(Boolean)).size) },
+  ];
+}
+
 export default function FornecedorPage({
   records,
   onSave,
@@ -91,23 +112,8 @@ export default function FornecedorPage({
       emptyValues={emptyValues}
       fields={fields}
       columns={columns}
-      getSearchableText={(record) =>
-        [
-          record.companyName,
-          record.contactName,
-          record.category,
-          record.phone,
-          record.email,
-          record.city,
-          record.state,
-          record.status,
-        ].join(' ')
-      }
-      getSummary={(items) => [
-        { label: 'Fornecedores', value: String(items.length) },
-        { label: 'Ativos', value: String(items.filter((item) => item.status === 'ativo').length) },
-        { label: 'Categorias', value: String(new Set(items.map((item) => item.category).filter(Boolean)).size) },
-      ]}
+      getSearchableText={getSearchableText}
+      getSummary={getSummary}
       onSave={onSave}
       onDelete={onDelete}
       isLoading={isLoading}

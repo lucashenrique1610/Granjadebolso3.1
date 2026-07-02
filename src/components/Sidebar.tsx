@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   Home,
   ClipboardList,
@@ -47,8 +47,7 @@ export type RouteId =
   | 'sistema'
   | 'personalizacao'
   | 'backups'
-  | 'assinatura'
-  | 'disponibilidade';
+  | 'assinatura';
 
 interface SidebarProps {
   activeRoute: RouteId;
@@ -77,16 +76,18 @@ type MenuCategory =
 interface SidebarGroupItemProps {
   key?: React.Key;
   cat: Extract<MenuCategory, { kind: 'group' }>;
+  groupId: string;
   isCollapsed: boolean;
   isDarkMode: boolean;
   activeRoute: RouteId;
   isOpen: boolean;
-  onToggle: () => void;
+  onToggle: (id: string) => void;
   onNavigate: (route: RouteId) => void;
 }
 
-function SidebarGroupItem({
+const SidebarGroupItem = React.memo(function SidebarGroupItem({
   cat,
+  groupId,
   isCollapsed,
   isDarkMode,
   activeRoute,
@@ -107,7 +108,7 @@ function SidebarGroupItem({
       {/* Group header button */}
       <button
         type="button"
-        onClick={() => { if (!isCollapsed) onToggle(); }}
+        onClick={() => { if (!isCollapsed) onToggle(groupId); }}
         className={[
           'w-full flex items-center gap-3 px-5 py-3 rounded-xl text-[14px] font-semibold transition-all duration-200 cursor-pointer text-left',
           hasActiveChild
@@ -260,12 +261,12 @@ function SidebarGroupItem({
       )}
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main Sidebar component
 // ---------------------------------------------------------------------------
-export default function Sidebar({
+function Sidebar({
   activeRoute,
   onNavigate,
   isCollapsed,
@@ -384,7 +385,7 @@ export default function Sidebar({
     }
   }, [isMobileOpen]);
 
-  const handleNavigate = (route: RouteId) => {
+  const handleNavigate = useCallback((route: RouteId) => {
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
     if (document.activeElement instanceof HTMLElement) {
@@ -392,10 +393,11 @@ export default function Sidebar({
     }
     onNavigate(route);
     setTimeout(() => { isNavigatingRef.current = false; }, 300);
-  };
+  }, [onNavigate]);
 
-  const toggleGroup = (id: string) =>
+  const toggleGroup = useCallback((id: string) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   // -------------------------------------------------------------------------
   // Render helpers
@@ -515,11 +517,12 @@ export default function Sidebar({
             <SidebarGroupItem
               key={cat.id}
               cat={cat as Extract<MenuCategory, { kind: 'group' }>}
+              groupId={cat.id}
               isCollapsed={isCollapsed}
               isDarkMode={isDarkMode}
               activeRoute={activeRoute}
               isOpen={openGroups[cat.id] ?? false}
-              onToggle={() => toggleGroup(cat.id)}
+              onToggle={toggleGroup}
               onNavigate={handleNavigate}
             />
           );
@@ -561,7 +564,7 @@ export default function Sidebar({
   const bottomNavGroups: Array<{ id: RouteId; label: string; icon: React.ReactNode; routes: RouteId[] }> = [
     { id: 'inicio', label: 'Início', icon: <Home className="w-6 h-6" />, routes: ['inicio'] },
     { id: 'manejo', label: 'Manejo', icon: <ClipboardList className="w-6 h-6" />, routes: ['manejo', 'formulacao'] },
-    { id: 'vendas', label: 'Vendas', icon: <ShoppingBag className="w-6 h-6" />, routes: ['vendas', 'disponibilidade'] },
+    { id: 'vendas', label: 'Vendas', icon: <ShoppingBag className="w-6 h-6" />, routes: ['vendas'] },
   ];
 
   const isMoreActive = ['clima', 'conhecimento', 'perfil', 'sistema', 'backups', 'assinatura'].includes(activeRoute);
@@ -700,3 +703,5 @@ export default function Sidebar({
     </>
   );
 }
+
+export default React.memo(Sidebar);

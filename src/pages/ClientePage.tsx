@@ -57,6 +57,18 @@ const columns: CadastroColumn<ClientRecord>[] = [
   },
 ];
 
+function getSearchableText(record: ClientRecord) {
+  return [record.name, record.document, record.phone, record.email, record.city, record.state, record.status].join(' ');
+}
+
+function getSummary(items: ClientRecord[]) {
+  return [
+    { label: 'Clientes', value: String(items.length) },
+    { label: 'Ativos', value: String(items.filter((item) => item.status === 'ativo').length) },
+    { label: 'Cidades', value: String(new Set(items.map((item) => item.city).filter(Boolean)).size) },
+  ];
+}
+
 export default function ClientePage({ records, onSave, onDelete, isLoading, isSyncing, errorMessage, onRetry }: ClientePageProps) {
   return (
     <CadastroSection
@@ -69,14 +81,8 @@ export default function ClientePage({ records, onSave, onDelete, isLoading, isSy
       emptyValues={emptyValues}
       fields={fields}
       columns={columns}
-      getSearchableText={(record) =>
-        [record.name, record.document, record.phone, record.email, record.city, record.state, record.status].join(' ')
-      }
-      getSummary={(items) => [
-        { label: 'Clientes', value: String(items.length) },
-        { label: 'Ativos', value: String(items.filter((item) => item.status === 'ativo').length) },
-        { label: 'Cidades', value: String(new Set(items.map((item) => item.city).filter(Boolean)).size) },
-      ]}
+      getSearchableText={getSearchableText}
+      getSummary={getSummary}
       onSave={onSave}
       onDelete={onDelete}
       isLoading={isLoading}

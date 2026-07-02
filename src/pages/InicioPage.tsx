@@ -165,7 +165,7 @@ export default function InicioPage({
 
     manejos.forEach(m => activities.push({ id: `m-${m.id}`, date: m.date, title: `Manejo (${m.turno})`, subtitle: `${m.ovosColetados} ovos, ${m.racaoKg}kg ração`, type: 'manejo' }));
     vendas.forEach(v => activities.push({ id: `v-${v.id}`, date: v.date, title: 'Venda Realizada', subtitle: currencyFormatter.format(v.valorTotal), type: 'venda' }));
-    compras.forEach(c => activities.push({ id: `c-${c.id}`, date: c.purchaseDate, title: 'Compra Efetuada', subtitle: `${c.productName || 'Produto'} - ${currencyFormatter.format(c.totalPrice)}`, type: 'compra' }));
+    compras.forEach(c => activities.push({ id: `c-${c.id}`, date: c.purchaseDate, title: 'Compra Efetuada', subtitle: `${c.itemName || 'Produto'} - ${currencyFormatter.format(c.totalPrice)}`, type: 'compra' }));
     mortalities.forEach(m => activities.push({ id: `mt-${m.id}`, date: m.date, title: 'Mortalidade Registrada', subtitle: `${m.deadCount} ave(s) - ${m.cause}`, type: 'mortalidade' }));
 
     return activities.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);

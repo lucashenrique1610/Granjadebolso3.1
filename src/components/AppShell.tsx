@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useMemo, useRef, useState, Suspense, lazy, useCallback } from 'react';
 import { LogOut, Moon, Sun } from 'lucide-react';
 import {
   AnimalRecord,
@@ -17,7 +17,6 @@ import {
   PurchaseRecord,
   SupplierRecord,
   SystemSettingsData,
-  THEME_PALETTES,
   UserPersonalData,
   VeterinaryStockRecord,
   VendaRecord,
@@ -146,7 +145,6 @@ export default function AppShell({
   onPreviewSystemPaletteChange,
 }: AppShellProps) {
   const [activeRoute, setActiveRoute] = useState<RouteId>('inicio');
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   // Persist sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -180,32 +178,13 @@ export default function AppShell({
   const [backupAutomation, setBackupAutomation] = useState<BackupAutomationSettings>(DEFAULT_BACKUP_AUTOMATION);
   const autoBackupRunRef = useRef(false);
 
-  // PWA Install Prompt
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      console.log('App instalado com sucesso!');
-    }
-    setDeferredPrompt(null);
-  };
 
   // Save sidebar collapsed state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', JSON.stringify(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
-  const loadCadastros = async () => {
+  const loadCadastros = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setCadastrosError('Supabase não está configurado para sincronizar os cadastros.');
       setIsCadastrosLoading(false);
@@ -289,13 +268,13 @@ export default function AppShell({
     } finally {
       setIsCadastrosLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadCadastros();
-  }, []);
+  }, [loadCadastros]);
 
-  const loadBackups = async () => {
+  const loadBackups = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setBackupsError('Supabase não está configurado para sincronizar os backups.');
       setIsBackupsLoading(false);
@@ -313,18 +292,17 @@ export default function AppShell({
     } finally {
       setIsBackupsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadBackups();
-  }, []);
+  }, [loadBackups]);
 
   // Background Sync Processor
   useEffect(() => {
     let syncInterval: ReturnType<typeof setInterval>;
 
     const handleOnline = () => {
-      console.log('App is online. Processing sync queue...');
       import('@/lib/syncProcessor').then(({ processSyncQueue }) => processSyncQueue());
     };
 
@@ -414,7 +392,7 @@ export default function AppShell({
     void refreshAppStateFromSupabase();
   }, []);
 
-  const upsertAnimal = async (payload: AnimalRecord) => {
+  const upsertAnimal = useCallback(async (payload: AnimalRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -431,9 +409,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeAnimal = async (id: string) => {
+  const removeAnimal = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -445,9 +423,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertClient = async (payload: ClientRecord) => {
+  const upsertClient = useCallback(async (payload: ClientRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -464,9 +442,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeClient = async (id: string) => {
+  const removeClient = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -478,9 +456,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertSupplier = async (payload: SupplierRecord) => {
+  const upsertSupplier = useCallback(async (payload: SupplierRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -497,9 +475,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeSupplier = async (id: string) => {
+  const removeSupplier = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -511,9 +489,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertPurchase = async (payload: PurchaseRecord) => {
+  const upsertPurchase = useCallback(async (payload: PurchaseRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -530,9 +508,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removePurchase = async (id: string) => {
+  const removePurchase = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -545,9 +523,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const syncFarmPopulationCount = async (nextAnimals: AnimalRecord[]) => {
+  const syncFarmPopulationCount = useCallback(async (nextAnimals: AnimalRecord[]) => {
     const totalBirds = nextAnimals.reduce((sum, item) => sum + (item.currentQuantity ?? item.quantity), 0);
     const currentGranja = await getMyLatestGranja();
 
@@ -563,9 +541,9 @@ export default function AppShell({
       selectedPalette: appState.selectedPalette,
       marketingSource: appState.marketingSource,
     });
-  };
+  }, [appState.farm, appState.selectedPalette, appState.marketingSource, onUpdateFarmProfile]);
 
-  const upsertGalpao = async (payload: GalpaoRecord) => {
+  const upsertGalpao = useCallback(async (payload: GalpaoRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -582,9 +560,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeGalpao = async (id: string) => {
+  const removeGalpao = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -597,9 +575,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertHealthProfessional = async (payload: HealthProfessionalRecord) => {
+  const upsertHealthProfessional = useCallback(async (payload: HealthProfessionalRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -616,9 +594,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeHealthProfessional = async (id: string) => {
+  const removeHealthProfessional = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -631,9 +609,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertHealth = async (payload: HealthRecord) => {
+  const upsertHealth = useCallback(async (payload: HealthRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -650,9 +628,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeHealth = async (id: string) => {
+  const removeHealth = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -665,9 +643,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertVeterinaryStock = async (payload: VeterinaryStockRecord) => {
+  const upsertVeterinaryStock = useCallback(async (payload: VeterinaryStockRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -684,9 +662,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeVeterinaryStock = async (id: string) => {
+  const removeVeterinaryStock = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -699,9 +677,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertMortality = async (payload: MortalityRecord) => {
+  const upsertMortality = useCallback(async (payload: MortalityRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -761,9 +739,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, [mortalityRecords, animalRecords, galpaoRecords, syncFarmPopulationCount]);
 
-  const removeMortality = async (id: string) => {
+  const removeMortality = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -812,9 +790,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, [mortalityRecords, animalRecords, galpaoRecords, syncFarmPopulationCount]);
 
-  const upsertManejo = async (record: ManejoRecord) => {
+  const upsertManejo = useCallback(async (record: ManejoRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -831,9 +809,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeManejo = async (id: string) => {
+  const removeManejo = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -846,9 +824,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertDisponibilidade = async (record: DisponibilidadeVenda) => {
+  const upsertDisponibilidade = useCallback(async (record: DisponibilidadeVenda) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -865,9 +843,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeDisponibilidade = async (id: string) => {
+  const removeDisponibilidade = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -880,9 +858,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertVenda = async (record: VendaRecord) => {
+  const upsertVenda = useCallback(async (record: VendaRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -899,9 +877,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeVenda = async (id: string) => {
+  const removeVenda = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -914,23 +892,18 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertIngredient = async (record: IngredientRecord) => {
-    console.log('[DEBUG] AppShell upsertIngredient INICIADO com:', record);
+  const upsertIngredient = useCallback(async (record: IngredientRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
-      console.log('[DEBUG] Chamando upsertMyIngredient...');
       const saved = await upsertMyIngredient(record);
-      console.log('[DEBUG] Dados salvos recebidos do supabase.ts:', saved);
       setIngredientRecords((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === saved.id);
-        console.log('[DEBUG] Atualizando estado local! existingIndex:', existingIndex);
         if (existingIndex === -1) return [saved, ...prev];
         return prev.map((item) => (item.id === saved.id ? saved : item));
       });
-      console.log('[DEBUG] Estado local atualizado com sucesso!');
     } catch (error) {
       console.error('[DEBUG] ERRO no AppShell upsertIngredient:', error);
       const message = error instanceof Error ? error.message : 'Erro ao salvar ingrediente.';
@@ -939,9 +912,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeIngredient = async (id: string) => {
+  const removeIngredient = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -954,9 +927,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertFormulacao = async (record: FormulationRecord) => {
+  const upsertFormulacao = useCallback(async (record: FormulationRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -973,9 +946,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeFormulacao = async (id: string) => {
+  const removeFormulacao = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -988,9 +961,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const upsertFormulatedFeedStock = async (record: FormulatedFeedStockRecord) => {
+  const upsertFormulatedFeedStock = useCallback(async (record: FormulatedFeedStockRecord) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -1007,9 +980,9 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
-  const removeFormulatedFeedStock = async (id: string) => {
+  const removeFormulatedFeedStock = useCallback(async (id: string) => {
     try {
       setIsCadastrosSyncing(true);
       setCadastrosError(null);
@@ -1022,7 +995,7 @@ export default function AppShell({
     } finally {
       setIsCadastrosSyncing(false);
     }
-  };
+  }, []);
 
   const savePersonalProfile = async (payload: Omit<UserPersonalData, 'password'>) => {
     try {
@@ -1321,6 +1294,23 @@ export default function AppShell({
     return titles[activeRoute];
   }, [activeRoute]);
 
+  const handleNavigate = useCallback((route: RouteId) => {
+    setActiveRoute(route);
+    setIsMobileSidebarOpen(false);
+  }, []);
+
+  const handleToggleSidebarCollapsed = useCallback(() => {
+    setIsSidebarCollapsed((v) => !v);
+  }, []);
+
+  const handleOpenMobileSidebar = useCallback(() => {
+    setIsMobileSidebarOpen(true);
+  }, []);
+
+  const handleCloseMobileSidebar = useCallback(() => {
+    setIsMobileSidebarOpen(false);
+  }, []);
+
   const renderPage = () => {
     switch (activeRoute) {
       case 'inicio':
@@ -1580,16 +1570,13 @@ export default function AppShell({
     >
       <Sidebar
         activeRoute={activeRoute}
-        onNavigate={(route) => {
-          setActiveRoute(route);
-          setIsMobileSidebarOpen(false);
-        }}
+        onNavigate={handleNavigate}
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapsed={() => setIsSidebarCollapsed((v) => !v)}
+        onToggleCollapsed={handleToggleSidebarCollapsed}
         isDarkMode={isDarkMode}
         isMobileOpen={isMobileSidebarOpen}
-        onRequestOpenMobile={() => setIsMobileSidebarOpen(true)}
-        onRequestCloseMobile={() => setIsMobileSidebarOpen(false)}
+        onRequestOpenMobile={handleOpenMobileSidebar}
+        onRequestCloseMobile={handleCloseMobileSidebar}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -1612,20 +1599,6 @@ export default function AppShell({
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            {deferredPrompt && (
-              <button
-                type="button"
-                onClick={handleInstallApp}
-                className={[
-                  'px-3 py-1.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm transition-all duration-250 active:scale-95 cursor-pointer shadow-sm items-center gap-2',
-                  isDarkMode
-                    ? 'bg-brand-primary/20 text-brand-primary hover:bg-brand-primary/30 border border-brand-primary/30'
-                    : 'bg-brand-primary text-white hover:bg-brand-hover border border-brand-hover'
-                ].join(' ')}
-              >
-                Instalar App
-              </button>
-            )}
             <button
               type="button"
               onClick={onToggleDarkMode}

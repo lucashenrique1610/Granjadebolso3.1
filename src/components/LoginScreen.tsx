@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Mail, Lock, ArrowRight, Wheat, Eye, EyeOff, AlertCircle, LineChart, ShieldCheck, Beaker, Sprout, CheckCircle2 } from 'lucide-react';
-import { signInWithEmail, isSupabaseConfigured, supabaseConfigIssue } from '@/lib/supabase';
+import { requestPasswordResetEmail, signInWithEmail, isSupabaseConfigured } from '@/lib/supabase';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -20,6 +20,10 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [loginCooldownUntil, setLoginCooldownUntil] = useState(0);
 
   useEffect(() => {
     if (initialEmail) {
@@ -30,6 +34,14 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setAuthNotice('');
+
+    const now = Date.now();
+    if (now < loginCooldownUntil) {
+      const remainingSeconds = Math.ceil((loginCooldownUntil - now) / 1000);
+      setAuthError(`Muitas tentativas. Tente novamente em ${remainingSeconds} segundos.`);
+      return;
+    }
 
     if (!isSupabaseConfigured) {
       setAuthError('Falha ao conectar com o servidor. Por favor, verifique sua conexão ou tente novamente mais tarde.');
@@ -43,9 +55,19 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
 
     try {
       await signInWithEmail(email.trim(), password);
+      setPassword('');
+      setLoginAttempts(0);
       onLogin();
     } catch (e: any) {
       const message = typeof e?.message === 'string' ? e.message : '';
+      
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      
+      if (newAttempts >= 5) {
+        setLoginCooldownUntil(Date.now() + 60000); // 1 minute cooldown
+      }
+
       if (message.toLowerCase().includes('invalid login credentials')) {
         setAuthError('E-mail ou senha inválidos.');
         return;
@@ -55,6 +77,32 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
         return;
       }
       setAuthError(message || 'Falha ao autenticar. Tente novamente.');
+    }
+  };
+  const handleRequestPasswordReset = async () => {
+    setAuthError('');
+    setAuthNotice('');
+
+    if (!isSupabaseConfigured) {
+      setAuthError('Falha ao conectar com o servidor. Tente novamente mais tarde.');
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
+      setAuthError('Informe seu e-mail para receber o link de redefinicao.');
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await requestPasswordResetEmail(trimmedEmail);
+      setPassword('');
+      setAuthNotice('Enviamos um link seguro para redefinir sua senha. Verifique seu e-mail.');
+    } catch (error: any) {
+      setAuthError(error?.message || 'Nao foi possivel enviar o link de redefinicao.');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -146,6 +194,12 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                 </div>
               )}
               
+              {authNotice && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-2xl flex items-start gap-2.5 text-xs text-green-800 font-semibold leading-relaxed">
+                  <span>{authNotice}</span>
+                </div>
+              )}
+              
               {/* Email Input Group */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-gray-700" htmlFor="email-login">
@@ -157,6 +211,7 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                     id="email-login"
                     type="email"
                     required
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nome@empresa.com"
@@ -176,6 +231,7 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                     id="password-login"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -211,10 +267,11 @@ export default function LoginScreen({ onLogin, onGoToSignup, initialEmail, notic
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert('Para redefinir sua senha, entre em contato com o suporte em suporte@granjadebolso.com')}
-                  className="text-xs font-bold text-brand-primary hover:underline"
+                  onClick={handleRequestPasswordReset}
+                  disabled={isResettingPassword}
+                  className="text-xs font-bold text-brand-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Esqueci minha senha
+                  {isResettingPassword ? 'Enviando...' : 'Esqueci minha senha'}
                 </button>
               </div>
 

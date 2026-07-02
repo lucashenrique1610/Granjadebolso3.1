@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { FarmConfigData, FarmProfileData, OnboardingState, SystemSettingsData, ThemePaletteId, UserPersonalData, FONT_OPTIONS, RADIUS_OPTIONS } from '@/types';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { FarmConfigData, FarmProfileData, OnboardingState, RegistrationCredentials, SystemSettingsData, ThemePaletteId, UserPersonalData, FONT_OPTIONS, RADIUS_OPTIONS } from '@/types';
 import { resolveThemePalette } from '@/lib/theme';
 import AppShell from '@/components/AppShell';
 import LoginScreen from '@/components/LoginScreen';
 import OnboardingHero from '@/components/OnboardingHero';
+import PasswordRecoveryScreen from '@/components/PasswordRecoveryScreen';
 import StepColorCustomize from '@/components/StepColorCustomize';
 import StepFarmConfig from '@/components/StepFarmConfig';
 import StepFinalization from '@/components/StepFinalization';
@@ -101,8 +102,8 @@ function getPendingOnboardingStep(state: OnboardingState) {
     return 2;
   }
 
-  if (!state.marketingSource.trim()) {
-    return 4;
+  if (!state.selectedPalette) {
+    return 3;
   }
 
   return 4;
@@ -124,20 +125,25 @@ function hasCompleteOnboardingData(state: OnboardingState, emailOverride?: strin
 export default function App() {
   const [appState, setAppState] = useState<OnboardingState>(initialDefaultState);
   const [loginNotice, setLoginNotice] = useState('');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const appStateRef = useRef(appState);
+  const pendingSignupPasswordRef = useRef('');
 
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
 
+  const clearPendingSignupPassword = useCallback(() => {
+    pendingSignupPasswordRef.current = '';
+  }, []);
+
   const sanitizeForStorage = (state: OnboardingState): OnboardingState => {
+    const { password: _legacyPassword, ...safePersonal } = (state.personal ?? {}) as UserPersonalData & { password?: string };
+
     return normalizeState({
       ...state,
-      personal: {
-        ...state.personal,
-        password: undefined,
-      },
+      personal: safePersonal,
     });
   };
 
@@ -255,7 +261,6 @@ export default function App() {
               fullName: user?.full_name || prev.personal.fullName,
               email: email || prev.personal.email,
               phone: user?.phone || prev.personal.phone,
-              password: undefined,
             },
             farm: {
               ...prev.farm,
@@ -315,15 +320,22 @@ export default function App() {
       if (session?.user?.email) {
         hydrateFromSession(session.user.email);
       } else {
+        setIsPasswordRecovery(false);
         saveState((prev) => (prev.step === 5 ? { ...prev, step: 0 } : prev));
       }
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+        setLoginNotice('');
+        return;
+      }
       if (session?.user?.email) {
         setLoginNotice('');
         hydrateFromSession(session.user.email);
       } else {
+        setIsPasswordRecovery(false);
         saveState((prev) => (prev.step === 5 ? { ...prev, step: 0 } : prev));
       }
     });
@@ -356,15 +368,18 @@ export default function App() {
 
   // View transitions helper
   const handleStartOnboarding = () => {
+    clearPendingSignupPassword();
     setLoginNotice('');
     saveState((prev) => ({ ...prev, step: 1 }));
   };
 
   const handleGoToLogin = () => {
+    clearPendingSignupPassword();
     saveState((prev) => ({ ...prev, step: -1 }));
   };
 
-  const handlePersonalDataSubmit = (personalData: UserPersonalData) => {
+  const handlePersonalDataSubmit = (personalData: UserPersonalData, credentials: RegistrationCredentials) => {
+    pendingSignupPasswordRef.current = credentials.password;
     saveState((prev) => ({
       ...prev,
       personal: personalData,
@@ -400,21 +415,23 @@ export default function App() {
     saveState((prev) => ({ ...prev, marketingSource: source }));
 
     if (!isSupabaseConfigured) {
+      clearPendingSignupPassword();
       if (supabaseConfigIssue === 'service_role') {
         setLoginNotice('Chave do Supabase inválida: você colou uma service_role key. Use a anon public key (Settings → API → anon public).');
       } else {
         setLoginNotice('Supabase não está configurado. Crie ou preencha o arquivo .env na raiz do projeto com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY e reinicie o npm run dev.');
       }
-      saveState((prev) => ({ ...prev, step: -1, personal: { ...prev.personal, password: undefined } }));
+      saveState((prev) => ({ ...prev, step: -1 }));
       return;
     }
 
     const current = appStateRef.current;
     const email = current.personal.email?.trim();
-    const password = current.personal.password || '';
+    const password = pendingSignupPasswordRef.current;
     if (!email || !password) {
+      clearPendingSignupPassword();
       setLoginNotice('Finalize o cadastro com e-mail e senha e faça login para sincronizar com a nuvem.');
-      saveState((prev) => ({ ...prev, step: -1, personal: { ...prev.personal, password: undefined } }));
+      saveState((prev) => ({ ...prev, step: -1 }));
       return;
     }
 
@@ -427,7 +444,7 @@ export default function App() {
 
       if (!hasSession) {
         setLoginNotice('Conta criada. Confirme seu e-mail e entre para concluir automaticamente o salvamento dos dados da granja.');
-        saveState((prev) => ({ ...prev, step: -1, personal: { ...prev.personal, password: undefined } }));
+        saveState((prev) => ({ ...prev, step: -1 }));
         return;
       }
 
@@ -465,21 +482,37 @@ export default function App() {
         await createMyGranja(granjaPayload);
       }
 
-      saveState((prev) => ({ ...prev, step: 5, personal: { ...prev.personal, password: undefined } }));
+      saveState((prev) => ({ ...prev, step: 5 }));
     } catch (e: any) {
       const message = typeof e?.message === 'string' ? e.message : '';
       if (message.toLowerCase().includes('user already registered') || message.toLowerCase().includes('already registered')) {
         setLoginNotice('Este e-mail já possui conta. Entre com sua senha para continuar.');
-        saveState((prev) => ({ ...prev, step: -1, personal: { ...prev.personal, password: undefined } }));
+        saveState((prev) => ({ ...prev, step: -1 }));
         return;
       }
       setLoginNotice(message || 'Falha ao criar conta. Tente novamente.');
-      saveState((prev) => ({ ...prev, step: -1, personal: { ...prev.personal, password: undefined } }));
+      saveState((prev) => ({ ...prev, step: -1 }));
+    } finally {
+      clearPendingSignupPassword();
     }
   };
 
   const handleLoginSuccess = () => {
     setLoginNotice('');
+  };
+
+  const handlePasswordRecovered = async () => {
+    try {
+      if (isSupabaseConfigured) {
+        await signOut();
+      }
+    } catch (e) {
+      console.error('Falha ao encerrar sessao de recuperacao:', e);
+    } finally {
+      setIsPasswordRecovery(false);
+      setLoginNotice('Senha redefinida com sucesso. Entre com a nova senha.');
+      saveState((prev) => ({ ...prev, step: -1 }));
+    }
   };
 
   const handleLogout = async () => {
@@ -490,27 +523,33 @@ export default function App() {
     } catch (e) {
       console.error('Falha ao sair:', e);
     } finally {
+      clearPendingSignupPassword();
+      setIsPasswordRecovery(false);
       saveState((prev) => ({ ...prev, step: 0 }));
     }
   };
 
   const handleReset = () => {
+    clearPendingSignupPassword();
     setLoginNotice('');
     saveState({ ...initialDefaultState, step: 1 });
   };
 
-  const handlePersonalProfileUpdate = (personal: Omit<UserPersonalData, 'password'>) => {
+  const handleToggleDarkMode = useCallback(() => {
+    setIsDarkMode((v) => !v);
+  }, []);
+
+  const handlePersonalProfileUpdate = useCallback((personal: Omit<UserPersonalData, 'password'>) => {
     saveState((prev) => ({
       ...prev,
       personal: {
         ...prev.personal,
         ...personal,
-        password: undefined,
       },
     }));
-  };
+  }, []);
 
-  const handleFarmProfileUpdate = (farmProfile: FarmProfileData) => {
+  const handleFarmProfileUpdate = useCallback((farmProfile: FarmProfileData) => {
     saveState((prev) => ({
       ...prev,
       farm: {
@@ -527,17 +566,17 @@ export default function App() {
         selectedPalette: farmProfile.selectedPalette,
       },
     }));
-  };
+  }, []);
 
-  const handleSystemSettingsUpdate = (systemSettings: SystemSettingsData) => {
+  const handleSystemSettingsUpdate = useCallback((systemSettings: SystemSettingsData) => {
     saveState((prev) => ({
       ...prev,
       selectedPalette: systemSettings.selectedPalette,
       systemSettings,
     }));
-  };
+  }, []);
 
-  const handleSystemPalettePreview = (paletteId: SystemSettingsData['selectedPalette'], customColor?: string) => {
+  const handleSystemPalettePreview = useCallback((paletteId: SystemSettingsData['selectedPalette'], customColor?: string) => {
     setAppState((prev) => ({
       ...prev,
       selectedPalette: paletteId,
@@ -547,12 +586,12 @@ export default function App() {
         customPaletteColor: customColor || prev.systemSettings.customPaletteColor,
       },
     }));
-  };
+  }, []);
 
   return (
     <div className={`w-full min-h-screen bg-brand-main transition-colors ${isDarkMode ? 'dark-theme' : ''}`}>
       {/* Switch Screens dynamically based on step index */}
-      {appState.step === -1 && (
+      {!isPasswordRecovery && appState.step === -1 && (
         <LoginScreen
           onLogin={handleLoginSuccess}
           onGoToSignup={handleReset}
@@ -561,22 +600,29 @@ export default function App() {
         />
       )}
 
-      {appState.step === 0 && (
+      {isPasswordRecovery && (
+        <PasswordRecoveryScreen onRecovered={handlePasswordRecovered} />
+      )}
+
+      {!isPasswordRecovery && appState.step === 0 && (
         <OnboardingHero
           onStart={handleStartOnboarding}
           onGoToLogin={handleGoToLogin}
         />
       )}
 
-      {appState.step === 1 && (
+      {!isPasswordRecovery && appState.step === 1 && (
         <StepPersonalData
           initialData={appState.personal}
           onNext={handlePersonalDataSubmit}
-          onBack={() => saveState((prev) => ({ ...prev, step: 0 }))}
+          onBack={() => {
+            clearPendingSignupPassword();
+            saveState((prev) => ({ ...prev, step: 0 }));
+          }}
         />
       )}
 
-      {appState.step === 2 && (
+      {!isPasswordRecovery && appState.step === 2 && (
         <StepFarmConfig
           initialData={appState.farm}
           onNext={handleFarmConfigSubmit}
@@ -584,7 +630,7 @@ export default function App() {
         />
       )}
 
-      {appState.step === 3 && (
+      {!isPasswordRecovery && appState.step === 3 && (
         <StepColorCustomize
           selectedPalette={appState.selectedPalette}
           onChangePalette={handlePaletteSelect}
@@ -593,7 +639,7 @@ export default function App() {
         />
       )}
 
-      {appState.step === 4 && (
+      {!isPasswordRecovery && appState.step === 4 && (
         <StepFinalization
           initialSource={appState.marketingSource}
           onBack={() => saveState((prev) => ({ ...prev, step: 3 }))}
@@ -601,12 +647,12 @@ export default function App() {
         />
       )}
 
-      {appState.step === 5 && (
+      {!isPasswordRecovery && appState.step === 5 && (
         <AppShell
           appState={appState}
           onLogout={handleLogout}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={() => setIsDarkMode((v) => !v)}
+          onToggleDarkMode={handleToggleDarkMode}
           onUpdatePersonalProfile={handlePersonalProfileUpdate}
           onUpdateFarmProfile={handleFarmProfileUpdate}
           onUpdateSystemSettings={handleSystemSettingsUpdate}

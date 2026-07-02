@@ -78,6 +78,21 @@ const columns: CadastroColumn<HealthProfessionalRecord>[] = [
   },
 ];
 
+function getSearchableText(record: HealthProfessionalRecord) {
+  return [record.name, record.role, record.councilNumber, record.phone, record.email, record.notes].join(' ');
+}
+
+function getSummary(items: HealthProfessionalRecord[]) {
+  return [
+    { label: 'Profissionais', value: String(items.length) },
+    { label: 'Ativos', value: String(items.filter((item) => item.isActive).length) },
+    {
+      label: 'Com acesso a registro',
+      value: String(items.filter((item) => ['registro', 'gestao'].includes(item.accessLevel)).length),
+    },
+  ];
+}
+
 export default function ProfissionaisPage({
   records,
   onSave,
@@ -96,30 +111,10 @@ export default function ProfissionaisPage({
       itemLabel="profissional"
       records={records}
       emptyValues={emptyValues}
-      fields={fields.map((field) =>
-        field.key === 'isActive'
-          ? {
-              ...field,
-              transformValue: (value: unknown) => value === 'true' || Boolean(value),
-            }
-          : field,
-      )}
+      fields={fields}
       columns={columns}
-      getSearchableText={(record) =>
-        [
-          record.name,
-          record.role,
-          record.councilNumber,
-          record.phone,
-          record.email,
-          record.notes,
-        ].join(' ')
-      }
-      getSummary={(items) => [
-        { label: 'Profissionais', value: String(items.length) },
-        { label: 'Ativos', value: String(items.filter((item) => item.isActive).length) },
-        { label: 'Com acesso a registro', value: String(items.filter((item) => ['registro', 'gestao'].includes(item.accessLevel)).length) },
-      ]}
+      getSearchableText={getSearchableText}
+      getSummary={getSummary}
       onSave={onSave}
       onDelete={onDelete}
       isLoading={isLoading}

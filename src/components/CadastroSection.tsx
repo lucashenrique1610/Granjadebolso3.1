@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Edit3, Plus, Search, Trash2, X } from 'lucide-react';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/ui/PaginationControls';
 
 type FieldType = 'text' | 'email' | 'tel' | 'number' | 'date' | 'select' | 'textarea';
 
@@ -38,7 +40,10 @@ interface CadastroSectionProps<T extends { id: string }> {
   columns: CadastroColumn<T>[];
   getSearchableText: (record: T) => string;
   getSummary: (records: T[]) => Array<{ label: string; value: string }>;
-  renderFormInsights?: (draft: Omit<T, 'id' | 'createdAt'>) => React.ReactNode;
+  renderFormInsights?: (
+    draft: Omit<T, 'id' | 'createdAt'>,
+    setDraft: React.Dispatch<React.SetStateAction<Omit<T, 'id' | 'createdAt'>>>,
+  ) => React.ReactNode;
   onSave: (payload: T) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
   isLoading?: boolean;
@@ -50,6 +55,62 @@ interface CadastroSectionProps<T extends { id: string }> {
 function createDraft<T extends { id: string }>(emptyValues: Omit<T, 'id' | 'createdAt'>): Omit<T, 'id' | 'createdAt'> {
   return JSON.parse(JSON.stringify(emptyValues)) as Omit<T, 'id' | 'createdAt'>;
 }
+
+interface CadastroRecordCardProps {
+  record: { id: string };
+  columns: CadastroColumn<{ id: string }>[];
+  isLoading: boolean;
+  isSyncing: boolean;
+  isSubmitting: boolean;
+  onEdit: (record: { id: string }) => void;
+  onDelete: (id: string) => void;
+}
+
+const CadastroRecordCard = React.memo(function CadastroRecordCard({
+  record,
+  columns,
+  isLoading,
+  isSyncing,
+  isSubmitting,
+  onEdit,
+  onDelete,
+}: CadastroRecordCardProps) {
+  return (
+    <article className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {columns.map((column) => (
+          <div key={String(column.key)}>
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">{column.label}</div>
+            <div className="mt-1 text-sm font-semibold text-[#0f1c2b]">
+              {column.render ? column.render(record) : String(record[column.key] ?? '-')}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={isLoading || isSyncing || isSubmitting}
+          onClick={() => onEdit(record)}
+          className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-white"
+        >
+          <Edit3 className="w-3.5 h-3.5" />
+          Editar
+        </button>
+        <button
+          type="button"
+          disabled={isLoading || isSyncing || isSubmitting}
+          onClick={() => void onDelete(record.id)}
+          className="inline-flex items-center gap-2 rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Excluir
+        </button>
+      </div>
+    </article>
+  );
+});
 
 export default function CadastroSection<T extends { id: string; createdAt: string }>({
   title,
@@ -82,14 +143,28 @@ export default function CadastroSection<T extends { id: string; createdAt: strin
     return records.filter((record) => getSearchableText(record).toLowerCase().includes(normalized));
   }, [getSearchableText, records, search]);
 
+  const {
+    paginatedItems,
+    currentPage,
+    totalPages,
+    totalItems,
+    nextPage,
+    prevPage,
+    resetPage,
+  } = usePagination(filteredRecords, 20);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, resetPage]);
+
   const summaryCards = useMemo(() => getSummary(records), [getSummary, records]);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setEditingId(null);
     setDraft(createDraft(emptyValues));
-  };
+  }, [emptyValues]);
 
-  const handleFieldChange = (key: keyof T, rawValue: string, type: FieldType) => {
+  const handleFieldChange = useCallback((key: keyof T, rawValue: string, type: FieldType) => {
     let parsedValue: string | number = rawValue;
     if (type === 'number') {
       parsedValue = rawValue === '' ? 0 : Number(rawValue);
@@ -99,7 +174,7 @@ export default function CadastroSection<T extends { id: string; createdAt: strin
       ...prev,
       [key]: parsedValue,
     }));
-  };
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -123,11 +198,19 @@ export default function CadastroSection<T extends { id: string; createdAt: strin
     }
   };
 
-  const handleEdit = (record: T) => {
-    const { id, createdAt, ...rest } = record;
+  const handleEdit = useCallback((record: T) => {
+    const { id, createdAt: _createdAt, ...rest } = record;
     setEditingId(id);
     setDraft(rest as Omit<T, 'id' | 'createdAt'>);
-  };
+  }, []);
+
+  const handleEditRecord = useCallback(
+    (record: { id: string }) => {
+      const fullRecord = records.find((item) => item.id === record.id);
+      if (fullRecord) handleEdit(fullRecord);
+    },
+    [handleEdit, records],
+  );
 
   return (
     <div className="app-section space-y-6">
@@ -295,41 +378,26 @@ export default function CadastroSection<T extends { id: string; createdAt: strin
               </div>
             )}
 
-            {filteredRecords.map((record) => (
-              <article key={record.id} className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {columns.map((column) => (
-                    <div key={String(column.key)}>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">{column.label}</div>
-                      <div className="mt-1 text-sm font-semibold text-[#0f1c2b]">
-                        {column.render ? column.render(record) : String(record[column.key] ?? '-')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={isLoading || isSyncing || isSubmitting}
-                    onClick={() => handleEdit(record)}
-                    className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-white"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isLoading || isSyncing || isSubmitting}
-                    onClick={() => void onDelete(record.id)}
-                    className="inline-flex items-center gap-2 rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Excluir
-                  </button>
-                </div>
-              </article>
+            {paginatedItems.map((record) => (
+              <CadastroRecordCard
+                key={record.id}
+                record={record}
+                columns={columns as CadastroColumn<{ id: string }>[]}
+                isLoading={isLoading}
+                isSyncing={isSyncing}
+                isSubmitting={isSubmitting}
+                onEdit={handleEditRecord}
+                onDelete={onDelete}
+              />
             ))}
+
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              onNext={nextPage}
+              onPrev={prevPage}
+            />
           </div>
         </div>
       </section>
